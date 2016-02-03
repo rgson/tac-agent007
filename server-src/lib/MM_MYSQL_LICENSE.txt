@@ -1,0 +1,2 @@
+MM.MySQL (mysql_comp.jar) is released under GNU LGPL and is available
+from http://mmmysql.sourceforge.net/

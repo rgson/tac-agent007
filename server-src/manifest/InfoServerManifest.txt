@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Sealed: true
+Main-Class: se.sics.tac.is.InfoServer
+Class-Path: lib/mysql_comp.jar lib/org.mortbay.jetty.jar lib/javax.servlet.jar
