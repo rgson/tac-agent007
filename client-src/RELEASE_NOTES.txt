@@ -1,0 +1,99 @@
+SICS TAC AgentWare Beta 9 (released 2006-05-02)
+-----------------------------------------------
+- Fixed to be more persisting in reconnecting to the server
+- Minor bug fixes
+
+
+SICS TAC AgentWare Beta 8 (released 2005-06-07)
+-----------------------------------------------
+- Quotes for flight auctions are now updated each 10 seconds
+- Added automatic disconnect from server to avoid problems with
+  pending connections
+- Minor bug fixes
+
+
+SICS TAC AgentWare Beta 7 (released 2004-05-24)
+-----------------------------------------------
+- The AgentWare now asks the server for the game length instead of
+  assuming 12 minutes
+- Added getAuctionDay() to retrieve the day of the auction
+- Added getAuctionType() to retrieve the type of the auction
+  (note that auctions in different categories might have the
+   same value as type (as in the specification))
+- Added getServerAuctionID() to replace deprecated getAuctionID()
+- Added method getGameTimeLeft() (msek until end of game)
+- Added isTACError() if tacerror is returned as reply to a message
+- Added method tacerrorReceived in the agent implementation which is called
+  when a tacerror has been received (default behaviour is to exit the agent
+  with fatalError())
+- Added option exitAfterGames to request that the agents automatically
+  exits after the specified number of games
+- The agent now shows game time left instead of game time
+- Game logs are now placed in subdirectory 'games'
+- Minor bug fixes
+
+
+SICS TAC AgentWare Beta 6 (released 2002-07-22)
+-----------------------------------------------
+- Added recovering of bids at startup (in case the agent is
+  restarted during a game). Also immediately requests hotel
+  quotes to get latest HQW for recovered bids.
+- Added option to display a compact representation of allocation
+  and own information at regular intervals in the log file.
+- Minor bug fixes
+
+
+SICS TAC AgentWare Beta 5 (released 2002-07-05)
+-----------------------------------------------
+- Added Bid.isAwaitingTransactions() that returns true if the bid
+  or part of it has been transacted, and the transaction info
+  requested but not yet received (and getOwn() not yet updated).
+- bidUpdated() will not be called until the transactions
+  been received for the bid.
+- Fixed so that a transacted bid (when bidString gets non-empty)
+  is not "preliminary" (bug fix)
+- Fixed logging to display XML_IN and XML_out messages together.
+- Various bug fixes.
+
+
+SICS TAC AgentWare Beta 4 (released 2002-07-02)
+-----------------------------------------------
+- Fixed a bug that made the AW request quotes with auctionID = 0.
+- And other minor bug fixes.
+
+
+SICS TAC AgentWare Beta 3 (released 2002-06-26)
+-----------------------------------------------
+- AgentImpl is now an abstract class.
+- New method: quoteUpdated(int auctionCategory).
+  Called when all quotes for a specific category of auctions
+  have been updated.
+- getStatusAsString in Quote has been renamed to getAuctionStatusAsString.
+- getTypeAsString in TACAgent has been renamed to getAuctionTypeAsString.
+- Hotel quotes are now requested as soon as they are updated
+  instead of each 30 seconds (hotel quotes are known to be
+  updated once per minute, on the minute).
+- TACAgent can handle startup with support for arguments and config file.
+- Generates separate log files for each game.
+
+Note: the API has changed. To upgrade a Beta 2 agent to Beta 3:
+
+1. The agent must extend AgentImpl, not implement it, since
+   AgentImpl now is an abstract class.
+
+2. AgentImpl contains a variable called 'agent' that the agent
+   can use to access the TACAgent agent ware.
+
+3. The initialization is now done with the method
+   'init(se.sics.tac.util.ArgEnumerator args)' instead of
+   'init(TACAgent agent)'. During initialization (and only then)
+   it is possible to access program arguments with 'args' and
+   options from the config file with
+   'agent.getConfig(<configName>,<defaultValue>)'.
+
+
+SICS TAC AgentWare Beta 2 (released 2002-06-07)
+-----------------------------------------------
+- measurements of response time and number of messages sent
+- bug fixes in communication with server (more robust)
+- '-nogui' argument for agent to run without GUI
