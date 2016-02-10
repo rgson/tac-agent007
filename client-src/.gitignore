@@ -1,1 +1,6 @@
 tacagent.jar
+
+# IntelliJ IDEA
+.idea/
+client-src.iml
+out/
