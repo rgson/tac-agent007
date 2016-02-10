@@ -127,7 +127,7 @@ public class Owns {
         // TODO skip the copy? possibly redundant and costs memory/performance.
         return copyArray(this.ownedItems);
     }
-    
+
     // ------------
 
     public void addInflight(int day, int quantity) {
@@ -135,7 +135,7 @@ public class Owns {
     }
 
     public void addOutflight(int day, int quantity) {
-        this.ownedItems[0][day - 1] += quantity;
+        this.ownedItems[0][day] += quantity;
     }
 
     public void addCheapHotel(int day, int quantity) {
@@ -156,6 +156,34 @@ public class Owns {
 
     public void addMuseumTicket(int day, int quantity) {
         this.ownedItems[6][day] += quantity;
+    }
+    
+    public int getInflightQuantity(int day) {
+        return this.ownedItems[0][day];
+    }
+
+    public int getOutflightQuantity(int day) {
+        return this.ownedItems[0][day];
+    }
+
+    public int getCheapHotelQuantity(int day) {
+        return this.ownedItems[2][day];
+    }
+
+    public int getGoodHotelQuantity(int day) {
+        return this.ownedItems[3][day];
+    }
+
+    public int getAlligatorWrestlingTicketQuantity(int day) {
+        return this.ownedItems[4][day];
+    }
+
+    public int getAmusementTicketQuantity(int day) {
+        return this.ownedItems[5][day];
+    }
+
+    public int getMuseumTicketQuantity(int day) {
+        return this.ownedItems[6][day];
     }
 
 }
