@@ -130,60 +130,16 @@ public class Owns {
 
     // ------------
 
-    public void addInflight(int day, int quantity) {
-        this.ownedItems[0][day] += quantity;
+    public void add(ItemType type, int day, int quantity) {
+        this.ownedItems[type.index][day] += quantity;
     }
 
-    public void addOutflight(int day, int quantity) {
-        this.ownedItems[0][day] += quantity;
+    public int get(ItemType type, int day) {
+        return this.ownedItems[type.index][day];
     }
 
-    public void addCheapHotel(int day, int quantity) {
-        this.ownedItems[2][day] += quantity;
-    }
-
-    public void addGoodHotel(int day, int quantity) {
-        this.ownedItems[3][day] += quantity;
-    }
-
-    public void addAlligatorWrestlingTicket(int day, int quantity) {
-        this.ownedItems[4][day] += quantity;
-    }
-
-    public void addAmusementTicket(int day, int quantity) {
-        this.ownedItems[5][day] += quantity;
-    }
-
-    public void addMuseumTicket(int day, int quantity) {
-        this.ownedItems[6][day] += quantity;
-    }
-    
-    public int getInflightQuantity(int day) {
-        return this.ownedItems[0][day];
-    }
-
-    public int getOutflightQuantity(int day) {
-        return this.ownedItems[0][day];
-    }
-
-    public int getCheapHotelQuantity(int day) {
-        return this.ownedItems[2][day];
-    }
-
-    public int getGoodHotelQuantity(int day) {
-        return this.ownedItems[3][day];
-    }
-
-    public int getAlligatorWrestlingTicketQuantity(int day) {
-        return this.ownedItems[4][day];
-    }
-
-    public int getAmusementTicketQuantity(int day) {
-        return this.ownedItems[5][day];
-    }
-
-    public int getMuseumTicketQuantity(int day) {
-        return this.ownedItems[6][day];
+    public void set(ItemType type, int day, int quantity) {
+        this.ownedItems[type.index][day] = quantity;
     }
 
 }
