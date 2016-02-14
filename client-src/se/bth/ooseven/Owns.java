@@ -1,5 +1,13 @@
 package se.bth.ooseven;
 
+/**
+ * Represents a collection of owned items.
+ *
+ * Offers convenience methods for adding, setting and getting the number of
+ * owned items.
+ *
+ * Also offers conversions between the agent's format and the solver's format.
+ */
 public class Owns {
 
     /*
@@ -40,7 +48,7 @@ public class Owns {
      * @param owns The solver's format representation of owned items.
      */
     public Owns(int[][] owns) {
-        this.ownedItems = copyArray(owns);
+        this.ownedItems = ArrayUtils.copyArray(owns);
     }
 
     /**
@@ -48,36 +56,7 @@ public class Owns {
      * @param owns The Owns object to copy.
      */
     public Owns(Owns owns) {
-        this.ownedItems = copyArray(owns.ownedItems);
-    }
-
-    /**
-     * Copies an array of integers.
-     * @param original The original to be copied.
-     * @return The copy.
-     */
-    private int[] copyArray(int[] original) {
-        int[] copy = new int[original.length];
-        for (int i = 0; i < copy.length; i++) {
-            copy[i] = original[i];
-        }
-        return copy;
-    }
-
-    /**
-     * Copies a 2D array of integers.
-     * @param original The original to be copied.
-     * @return The copy.
-     */
-    private int[][] copyArray(int[][] original) {
-        int[][] copy = new int[original.length][];
-        for (int i = 0; i < copy.length; i++) {
-            copy[i] = new int[original[i].length];
-            for (int j = 0; j < copy[i].length; j++) {
-                copy[i][j] = original[i][j];
-            }
-        }
-        return copy;
+        this.ownedItems = ArrayUtils.copyArray(owns.ownedItems);
     }
 
     /**
@@ -125,21 +104,36 @@ public class Owns {
      */
     public int[][] getSolverFormat() {
         // TODO skip the copy? possibly redundant and costs memory/performance.
-        return copyArray(this.ownedItems);
+        return ArrayUtils.copyArray(this.ownedItems);
     }
 
-    // ------------
-
-    public void add(ItemType type, int day, int quantity) {
-        this.ownedItems[type.index][day] += quantity;
+    /**
+     * Adds an item to the owned items.
+     *
+     * @param item The item to add a copy to.
+     * @param quantity The quantity to add.
+     */
+    public void add(Item item, int quantity) {
+        this.ownedItems[item.type.index][item.index] += quantity;
     }
 
-    public int get(ItemType type, int day) {
-        return this.ownedItems[type.index][day];
+    /**
+     * Gets the number of owned copies of the specified item.
+     *
+     * @param item The item to get the count for.
+     */
+    public int get(Item item) {
+        return this.ownedItems[item.type.index][item.index];
     }
 
-    public void set(ItemType type, int day, int quantity) {
-        this.ownedItems[type.index][day] = quantity;
+    /**
+     * Sets the number of owned copies of the specified item.
+     *
+     * @param item The item to set the quantity of.
+     * @param quantity The new quantity to set.
+     */
+    public void set(Item item, int quantity) {
+        this.ownedItems[item.type.index][item.index] = quantity;
     }
 
 }
