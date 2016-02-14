@@ -10,6 +10,8 @@ package se.bth.ooseven;
  */
 public class Owns {
 
+    // TODO: the solver's format for input seems to differ from its internal format. Expects 5x7 array. Presumably [day][item] = count.
+
     /*
      * The agent's format:
      * [ 0 -  3] Inflights
@@ -28,6 +30,17 @@ public class Owns {
      * [4][0 - 3] Alligator wrestling
      * [5][0 - 3] Amusement
      * [6][0 - 3] Museum
+     *
+     * The solver's format:
+     * First dimension is day.
+     * Second dimension is type.
+     * [0 - 4][0] Inflights
+     * [0 - 4][1] Outflights
+     * [0 - 4][2] Cheap hotels
+     * [0 - 4][3] Good hotels
+     * [0 - 4][4] Alligator wrestling
+     * [0 - 4][5] Amusement
+     * [0 - 4][6] Museum
      */
 
     /**
@@ -65,11 +78,16 @@ public class Owns {
      * @return The solver's format representation of owned items.
      */
     private int[][] convert(int[] owns) {
-        int[][] converted = new int[7][];
-        for (int i = 0; i < converted.length; i++) {
-            converted[i] = new int[4];
-            for (int j = 0; j < converted[i].length; j++) {
-                converted[i][j] = owns[i * 4 + j];
+        final int DAYS = 5;
+        final int TYPES = 7;
+        int[][] converted = new int[DAYS][TYPES];
+        for (int day = 0; day < DAYS - 1; day++) {
+            for (int type = 0; type < TYPES; type++) {
+                if (type == 1) {    // Outflights are offset by 1 day.
+                    converted[day + 1][type] = owns[type * 4 + day];
+                } else {
+                    converted[day][type] = owns[type * 4 + day];
+                }
             }
         }
         return converted;
@@ -114,7 +132,8 @@ public class Owns {
      * @param quantity The quantity to add.
      */
     public void add(Item item, int quantity) {
-        this.ownedItems[item.type.index][item.index] += quantity;
+//        this.ownedItems[item.type.index][item.index] += quantity;
+        this.ownedItems[item.day][item.type.index] += quantity;
     }
 
     /**
@@ -123,7 +142,8 @@ public class Owns {
      * @param item The item to get the count for.
      */
     public int get(Item item) {
-        return this.ownedItems[item.type.index][item.index];
+//        return this.ownedItems[item.type.index][item.index];
+        return this.ownedItems[item.day][item.type.index];
     }
 
     /**
@@ -133,7 +153,8 @@ public class Owns {
      * @param quantity The new quantity to set.
      */
     public void set(Item item, int quantity) {
-        this.ownedItems[item.type.index][item.index] = quantity;
+//        this.ownedItems[item.type.index][item.index] = quantity;
+        this.ownedItems[item.day][item.type.index] = quantity;
     }
 
 }

@@ -8,34 +8,34 @@ import java.util.Set;
  */
 public enum Item {
 
-    INFLIGHT_1 (Type.INFLIGHT, 1),
-    INFLIGHT_2 (Type.INFLIGHT, 2),
-    INFLIGHT_3 (Type.INFLIGHT, 3),
-    INFLIGHT_4 (Type.INFLIGHT, 4),
+    INFLIGHT_1 (Type.INFLIGHT, 0),
+    INFLIGHT_2 (Type.INFLIGHT, 1),
+    INFLIGHT_3 (Type.INFLIGHT, 2),
+    INFLIGHT_4 (Type.INFLIGHT, 3),
     OUTFLIGHT_1 (Type.OUTFLIGHT, 1),
     OUTFLIGHT_2 (Type.OUTFLIGHT, 2),
     OUTFLIGHT_3 (Type.OUTFLIGHT, 3),
     OUTFLIGHT_4 (Type.OUTFLIGHT, 4),
-    CHEAP_HOTEL_1 (Type.CHEAP_HOTEL, 1),
-    CHEAP_HOTEL_2 (Type.CHEAP_HOTEL, 2),
-    CHEAP_HOTEL_3 (Type.CHEAP_HOTEL, 3),
-    CHEAP_HOTEL_4 (Type.CHEAP_HOTEL, 4),
-    GOOD_HOTEL_1 (Type.GOOD_HOTEL, 1),
-    GOOD_HOTEL_2 (Type.GOOD_HOTEL, 2),
-    GOOD_HOTEL_3 (Type.GOOD_HOTEL, 3),
-    GOOD_HOTEL_4 (Type.GOOD_HOTEL, 4),
-    ALLIGATOR_WRESTLING_1 (Type.ALLIGATOR_WRESTLING, 1),
-    ALLIGATOR_WRESTLING_2 (Type.ALLIGATOR_WRESTLING, 2),
-    ALLIGATOR_WRESTLING_3 (Type.ALLIGATOR_WRESTLING, 3),
-    ALLIGATOR_WRESTLING_4 (Type.ALLIGATOR_WRESTLING, 4),
-    AMUSEMENT_1 (Type.AMUSEMENT, 1),
-    AMUSEMENT_2 (Type.AMUSEMENT, 2),
-    AMUSEMENT_3 (Type.AMUSEMENT, 3),
-    AMUSEMENT_4 (Type.AMUSEMENT, 4),
-    MUSEUM_1 (Type.MUSEUM, 1),
-    MUSEUM_2 (Type.MUSEUM, 2),
-    MUSEUM_3 (Type.MUSEUM, 3),
-    MUSEUM_4 (Type.MUSEUM, 4);
+    CHEAP_HOTEL_1 (Type.CHEAP_HOTEL, 0),
+    CHEAP_HOTEL_2 (Type.CHEAP_HOTEL, 1),
+    CHEAP_HOTEL_3 (Type.CHEAP_HOTEL, 2),
+    CHEAP_HOTEL_4 (Type.CHEAP_HOTEL, 3),
+    GOOD_HOTEL_1 (Type.GOOD_HOTEL, 0),
+    GOOD_HOTEL_2 (Type.GOOD_HOTEL, 1),
+    GOOD_HOTEL_3 (Type.GOOD_HOTEL, 2),
+    GOOD_HOTEL_4 (Type.GOOD_HOTEL, 3),
+    ALLIGATOR_WRESTLING_1 (Type.ALLIGATOR_WRESTLING, 0),
+    ALLIGATOR_WRESTLING_2 (Type.ALLIGATOR_WRESTLING, 1),
+    ALLIGATOR_WRESTLING_3 (Type.ALLIGATOR_WRESTLING, 2),
+    ALLIGATOR_WRESTLING_4 (Type.ALLIGATOR_WRESTLING, 3),
+    AMUSEMENT_1 (Type.AMUSEMENT, 0),
+    AMUSEMENT_2 (Type.AMUSEMENT, 1),
+    AMUSEMENT_3 (Type.AMUSEMENT, 2),
+    AMUSEMENT_4 (Type.AMUSEMENT, 3),
+    MUSEUM_1 (Type.MUSEUM, 0),
+    MUSEUM_2 (Type.MUSEUM, 1),
+    MUSEUM_3 (Type.MUSEUM, 2),
+    MUSEUM_4 (Type.MUSEUM, 3);
 
     /**
      * The item type.
@@ -43,9 +43,9 @@ public enum Item {
     public final Type type;
 
     /**
-     * The item's index (within its type).
+     * The item's day.
      */
-    public final int index;
+    public final int day;
 
     /**
      * The sequential index of the item.
@@ -57,12 +57,17 @@ public enum Item {
      * Constructs a new Item.
      *
      * @param type The item's type.
-     * @param index The item's index (within its type).
+     * @param day The item's day.
      */
-    Item(Type type, int index) {
+    Item(Type type, int day) {
         this.type = type;
-        this.index = index;
-        this.flatIndex = type.index * 4 + index;
+        this.day = day;
+
+        if (this.type == Type.OUTFLIGHT) {
+            this.flatIndex = type.index * 4 + day - 1;
+        } else {
+            this.flatIndex = type.index * 4 + day;
+        }
     }
 
     /**

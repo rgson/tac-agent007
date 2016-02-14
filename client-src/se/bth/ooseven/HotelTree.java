@@ -1,5 +1,7 @@
 package se.bth.ooseven;
 
+import se.rgson.util.Stopwatch;
+
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -191,7 +193,7 @@ public class HotelTree {
                 // immediate profit is pruned.
                 if (HotelTree.this.prune) {
                     this.children = this.children.stream()
-                            .filter(child -> child.value < 0)
+                            .filter(child -> child.value > 0)
                             .collect(Collectors.toSet());
                 }
 
@@ -220,6 +222,9 @@ public class HotelTree {
          * @return The set of allowed hotel rooms.
          */
         private Set<Item> getAllowedRooms() {
+            if (this.room == null) {
+                return Item.ROOMS;
+            }
             return Item.ROOMS.stream()
                     .filter(room -> room.flatIndex >= this.room.flatIndex)
                     .filter(room -> this.owns.get(room) < 8)                    // TODO evaluate usefulness
@@ -260,15 +265,15 @@ public class HotelTree {
          * nodes within the variance threshold. A move is added only if such a
          * node exists and offers an estimated increase in profit.
          *
-         * @param moves The queue of actions to which the action will be added.
+         * @param actions The queue of actions where the action will be added.
          * @param varianceThreshold The variance threshold, determining the
          *                          level of risk-taking behavior.
          */
-        public void addSuggestedActions(Queue<SuggestedAction> moves,
+        public void addSuggestedActions(Queue<SuggestedAction> actions,
                                         double varianceThreshold) {
 
             // If the node has no children then there are no more actions to add.
-            if (this.children == null && this.children.size() > 0) {
+            if (this.children != null && this.children.size() > 0) {
 
                 // Find the most valuable child within the variance threshold.
                 Node nextNode = this.children.stream()
@@ -284,12 +289,66 @@ public class HotelTree {
                 if (nextNode != null && nextNode.estimatedTotalValue >= 0) {
 
                     // Add the action required to get to the next node.
-                    moves.add(new SuggestedAction(nextNode.room, nextNode.value));
+                    actions.add(new SuggestedAction(nextNode.room, nextNode.value));
 
                     // Let the next node add more actions, recursively.
-                    nextNode.addSuggestedActions(moves, varianceThreshold);
+                    nextNode.addSuggestedActions(actions, varianceThreshold);
                 }
             }
+        }
+
+    }
+
+    // =========================================================================
+    // Entry-point for testing
+    // =========================================================================
+
+    public static void main(String[] args) {
+
+        Owns owns = new Owns(new int[] {
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 3, 4, 0,
+                0, 1, 1, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+        });
+
+        Prices prices = new Prices(new int[] {
+                  0,   0,   0,   0,
+                  0,   0,   0,   0,
+                 12,  21,  12,  21,
+                123, 321, 123, 321,
+                  0,   0,   0,   0,
+                  0,   0,   0,   0,
+                  0,   0,   0,   0,
+        });
+
+        Preferences preferences = new Preferences(new int[][] {
+                { 1, 3,  72,  77,  78,  37 },
+                { 2, 3,  55, 193, 180, 111 },
+                { 1, 3, 112,  67, 149, 177 },
+                { 1, 2,  87,  74,  72, 167 },
+                { 2, 3, 110,  68, 193, 148 },
+                { 1, 2,  69,  87, 142, 189 },
+                { 1, 3,  67,  78, 154,  67 },
+                { 1, 4, 140, 141,   3,  23 },
+        });
+
+        Cache cache = new Cache(preferences);
+
+        Stopwatch.start();
+        HotelTree tree = new HotelTree(cache, prices, owns, 6, true);
+        long time = Stopwatch.stop();
+        System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
+
+        Stopwatch.start();
+        Queue<SuggestedAction> actions = tree.getSuggestedActions(100000);
+        time = Stopwatch.stop();
+        System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
+        for (SuggestedAction action : actions) {
+            System.out.println(action.item.toString() + ": " + action.maxPrice);
         }
 
     }
