@@ -50,6 +50,9 @@ public class Cache {
      */
     public void stop() {
         run = false;
+        
+        manager.interrupt();
+        remover.interrupt();
     }
     
     /**
@@ -69,6 +72,20 @@ public class Cache {
         entry.lastUsed = new Long(System.nanoTime());
         
         return entry.result;
+    }
+    
+    public String stats() {
+        int hits = this.hits.intValue();
+        int miss = this.miss.intValue();
+        double hitRate  = 100*hits/(hits+miss);
+        double missRate = 100*miss/(hits+miss);
+    
+        String ret = "";
+        ret += "Hits:   "+hits+"("+hitRate+"%)\n";
+        ret += "Misses: "+miss+"("+missRate+"%)\n";
+        ret += "Fill:   "+storage.size()+"("+(double) (100*storage.size()/SIZE)+"%)\n";
+        
+        return ret;
     }
     
     /**
@@ -129,8 +146,8 @@ public class Cache {
     
     private class Manager implements Runnable {
         public void run() {
-            try {
-                while(run) {
+            while(run) {
+                try {
                     Entry entry = todo.take();
                     
                     // Get room for entry
@@ -138,26 +155,26 @@ public class Cache {
                     // Put into storage
                     
                     // Remove from buffer
+                } catch (InterruptedException e) {
+                    System.err.println("Cache.Manager got interrupted!");
                 }
-            } catch (InterruptedException e) {
-                if(run)
-                    System.err.println("Cache.Manager got interrupted, End!");
             }
         }
     }
     
     private class Remover implements Runnable {
         public void run() {
-            try {
-                while(run) {
+            while(run) {
+                try {
+                    Entry entry = todo.take();
+                    
                     // Walk over storage search for old entries
                     Entry old = new Entry();
                     
                     remove.put(old);
+                } catch (InterruptedException e) {
+                    System.err.println("Cache.Remover got interrupted!");
                 }
-            } catch (InterruptedException e) {
-                if(run)
-                    System.err.println("Cache.Remover got interrupted, End!");
             }
         }
     }
