@@ -25,15 +25,6 @@ public class Owns {
      * [24 - 27] Museum
      *
      * The solver's format:
-     * [0][0 - 3] Inflights
-     * [1][0 - 3] Outflights
-     * [2][0 - 3] Cheap hotels
-     * [3][0 - 3] Good hotels
-     * [4][0 - 3] Alligator wrestling
-     * [5][0 - 3] Amusement
-     * [6][0 - 3] Museum
-     *
-     * The solver's format:
      * First dimension is day.
      * Second dimension is type.
      * [0 - 4][0] Inflights
@@ -134,7 +125,6 @@ public class Owns {
      * @param quantity The quantity to add.
      */
     public void add(Item item, int quantity) {
-//        this.ownedItems[item.type.index][item.index] += quantity;
         this.ownedItems[item.day][item.type.index] += quantity;
     }
 
@@ -144,7 +134,6 @@ public class Owns {
      * @param item The item to get the count for.
      */
     public int get(Item item) {
-//        return this.ownedItems[item.type.index][item.index];
         return this.ownedItems[item.day][item.type.index];
     }
 
@@ -155,7 +144,6 @@ public class Owns {
      * @param quantity The new quantity to set.
      */
     public void set(Item item, int quantity) {
-//        this.ownedItems[item.type.index][item.index] = quantity;
         this.ownedItems[item.day][item.type.index] = quantity;
     }
 
