@@ -1,5 +1,7 @@
 package se.bth.ooseven;
 
+import java.util.Arrays;
+
 /**
  * Represents a collection of owned items.
  *
@@ -157,4 +159,19 @@ public class Owns {
         this.ownedItems[item.day][item.type.index] = quantity;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Owns owns = (Owns) o;
+
+        return Arrays.deepEquals(ownedItems, owns.ownedItems);
+
+    }
+
+    @Override
+    public int hashCode() {
+        return Arrays.deepHashCode(ownedItems);
+    }
 }
