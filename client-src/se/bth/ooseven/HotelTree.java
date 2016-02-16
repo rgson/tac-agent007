@@ -2,8 +2,12 @@ package se.bth.ooseven;
 
 import se.rgson.util.Stopwatch;
 
-import java.util.*;
+import java.util.LinkedList;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.DoubleStream;
 
 /**
  * A tree-structure of possible hotel room purchases.
@@ -46,6 +50,11 @@ public class HotelTree {
     private final boolean prune;
 
     /**
+     * Counts the number of nodes. Used for debugging purposes only.
+     */
+    private final AtomicInteger nodeCount;
+
+    /**
      * Constructs a new HotelTree.
      *
      * @param cache The cache to use for utility calculations.
@@ -60,6 +69,7 @@ public class HotelTree {
         this.cache = cache;
         this.prices = new Prices(prices);
         this.prune = prune;
+        this.nodeCount = new AtomicInteger(0);
 
         // Create a copy of the owned items, filled with all available flights.
         // Lets the solver determine the utilities without considering flights.
@@ -98,7 +108,7 @@ public class HotelTree {
         /**
          * The owned items, according to the scenario represented by this node.
          */
-        private final Owns owns;
+        private Owns owns;
 
         /**
          * The hotel room that was bought to get here from the parent node.
@@ -153,6 +163,8 @@ public class HotelTree {
             this.childValueAverage = 0;
             this.childValueVariance = 0;
             this.estimatedTotalValue = this.value;
+
+            HotelTree.this.nodeCount.incrementAndGet();
         }
 
         /**
@@ -174,6 +186,8 @@ public class HotelTree {
             this.childValueAverage = 0;
             this.childValueVariance = 0;
             this.estimatedTotalValue = this.value;
+
+            HotelTree.this.nodeCount.incrementAndGet();
         }
 
         /**
@@ -189,6 +203,10 @@ public class HotelTree {
                         .map(room -> new Node(this, room))
                         .collect(Collectors.toSet());
 
+                // After constructing the children, we no longer need the Owns
+                // object. Release it to reclaim some memory.
+                this.owns = null;
+
                 // If pruning is activated, any branch not resulting in
                 // immediate profit is pruned.
                 if (HotelTree.this.prune) {
@@ -198,7 +216,15 @@ public class HotelTree {
                 }
 
                 // Continue deepening the tree.
-                this.children.forEach(child -> child.deepen(maxDepth - 1));
+                this.children.parallelStream()
+                        .forEach(child -> child.deepen(maxDepth - 1));
+
+                // Prune any branches with negative value before calculating
+                // the statistics. We won't ever be forced to make a bid that is
+                // considered worse than doing nothing.
+                this.children = this.children.stream()
+                        .filter(child -> child.estimatedTotalValue > 0)
+                        .collect(Collectors.toSet());
 
                 // If there are any children, calculate average values, etc.
                 if (this.children.size() > 0) {
@@ -239,16 +265,20 @@ public class HotelTree {
          * current node is calculated.
          */
         private void calculateStatistics() {
+            // Prepare the values of possible choices.
+            double[] values = DoubleStream.concat(
+                    DoubleStream.of(0), // Doing nothing is also a possibility.
+                    this.children.stream()
+                            .mapToDouble(child -> child.estimatedTotalValue))
+                    .toArray();
+
             // Calculate the average estimated total value of all children.
-            double mean = this.children.stream()
-                    .mapToDouble(child -> child.estimatedTotalValue)
-                    .average().getAsDouble();
+            double mean = DoubleStream.of(values).average().getAsDouble();
 
             // Calculate the variance in the estimated total values.
-            double variance = this.children.stream()
-                    .mapToDouble(child -> child.estimatedTotalValue)
+            double variance = DoubleStream.of(values)
                     .reduce(0, (sum, x) -> sum + Math.pow(x - mean, 2))
-                    / this.children.size();
+                    / values.length;
 
             this.childValueAverage = mean;
             this.childValueVariance = variance;
@@ -308,8 +338,12 @@ public class HotelTree {
         Owns owns = new Owns(new int[] {
                 0, 0, 0, 0,
                 0, 0, 0, 0,
-                0, 3, 4, 0,
-                0, 1, 1, 0,
+
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+//                0, 3, 4, 0,
+//                0, 1, 1, 0,
+
                 0, 0, 0, 0,
                 0, 0, 0, 0,
                 0, 0, 0, 0,
@@ -339,18 +373,21 @@ public class HotelTree {
         Cache cache = new Cache(preferences);
 
         Stopwatch.start();
-        HotelTree tree = new HotelTree(cache, prices, owns, 6, true);
+        HotelTree tree = new HotelTree(cache, prices, owns, 13, false);
         long time = Stopwatch.stop();
         System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
 
+        System.out.println("Node count: " + tree.nodeCount);
+
         Stopwatch.start();
-        Queue<SuggestedAction> actions = tree.getSuggestedActions(100000);
+        Queue<SuggestedAction> actions = tree.getSuggestedActions(1000000);
         time = Stopwatch.stop();
         System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
         for (SuggestedAction action : actions) {
             System.out.println(action.item.toString() + ": " + action.maxPrice);
         }
 
+        cache.stop();
     }
 
 }
