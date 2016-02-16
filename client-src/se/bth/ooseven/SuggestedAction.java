@@ -27,4 +27,8 @@ public final class SuggestedAction {
         this.maxPrice = maxPrice;
     }
 
+    @Override
+    public String toString() {
+        return String.format("(%s, %d)", this.item, this.maxPrice);
+    }
 }

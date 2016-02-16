@@ -1,7 +1,6 @@
 package se.bth.ooseven;
 
-import se.rgson.util.Stopwatch;
-
+import java.time.Duration;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
@@ -44,12 +43,6 @@ public class HotelTree {
     private final Node root;
 
     /**
-     * Flag to signal whether pruning is used within the tree.
-     * Pruning removes any branch which does not offer an increase in profit.
-     */
-    private final boolean prune;
-
-    /**
      * Counts the number of nodes. Used for debugging purposes only.
      */
     private final AtomicInteger nodeCount;
@@ -57,18 +50,13 @@ public class HotelTree {
     /**
      * Constructs a new HotelTree.
      *
-     * @param cache The cache to use for utility calculations.
+     * @param cache  The cache to use for utility calculations.
      * @param prices The prices to consider when deciding the node values.
-     * @param owns The owned items at the root node.
-     * @param maxDepth The maximum depth. Used for iterative deepening.
-     * @param prune Flag to enable or disable pruning of the tree.
+     * @param owns   The owned items at the root node.
      */
-    public HotelTree(Cache cache, Prices prices, Owns owns, int maxDepth,
-                     boolean prune) {
-
+    public HotelTree(Cache cache, Prices prices, Owns owns) {
         this.cache = cache;
         this.prices = new Prices(prices);
-        this.prune = prune;
         this.nodeCount = new AtomicInteger(0);
 
         // Create a copy of the owned items, filled with all available flights.
@@ -79,7 +67,6 @@ public class HotelTree {
         }
 
         this.root = new Node(owns);
-        this.root.deepen(maxDepth);
     }
 
     /**
@@ -87,13 +74,28 @@ public class HotelTree {
      *
      * @param varianceThreshold The variance threshold. Used for determining
      *                          the amount of risk-taking behavior allowed.
+     * @param maxTime           The maximum amount of time allowed for the search.
      * @return A queue of suggested actions (bids), in the order they were taken
-     *         during the building of the tree.
+     * during the building of the tree.
      */
-    public Queue<SuggestedAction> getSuggestedActions(double varianceThreshold) {
-        LinkedList<SuggestedAction> moves = new LinkedList<>();
-        this.root.addSuggestedActions(moves, varianceThreshold);
-        return moves;
+    public Queue<SuggestedAction> getSuggestedActions(double varianceThreshold,
+                                                      int depthOfVision,
+                                                      Duration maxTime) {
+
+        ActionFinder finder = new ActionFinder(varianceThreshold, depthOfVision);
+        Thread finderThread = new Thread(finder, "HotelTree.ActionFinder");
+        try {
+            // Run the finder for at most maxTime.
+            finderThread.run();
+            finderThread.join(maxTime.toMillis());
+        } catch (InterruptedException e) {
+            // Re-interrupt the current thread.
+            Thread.currentThread().interrupt();
+        } finally {
+            // Time's up. Kindly ask the finder to terminate.
+            finderThread.interrupt();
+        }
+        return finder.getSuggestedActions();
     }
 
     // =========================================================================
@@ -171,7 +173,7 @@ public class HotelTree {
          * Constructs a new Node as the child of another.
          *
          * @param parent The parent node.
-         * @param room The room to buy at the parent node to get to this node.
+         * @param room   The room to buy at the parent node to get to this node.
          */
         public Node(Node parent, Item room) {
             this.room = room;
@@ -197,34 +199,26 @@ public class HotelTree {
          *                 deepening.
          */
         private void deepen(int maxDepth) {
+            // Only deepen until the max depth is reached.
             if (maxDepth > 0) {
-                // Construct children for all allowed rooms.
-                this.children = getAllowedRooms().stream()
-                        .map(room -> new Node(this, room))
-                        .collect(Collectors.toSet());
 
-                // After constructing the children, we no longer need the Owns
-                // object. Release it to reclaim some memory.
-                this.owns = null;
+                // Only create children if we haven't already done so.
+                if (this.children == null) {
 
-                // If pruning is activated, any branch not resulting in
-                // immediate profit is pruned.
-                if (HotelTree.this.prune) {
-                    this.children = this.children.stream()
-                            .filter(child -> child.value > 0)
+                    // Construct children for all available rooms.
+                    this.children = Item.ROOMS.stream()
+                            .filter(room -> this.owns.get(room) < 16) // Only 16 copies of each rooms exist.
+                            .map(room -> new Node(this, room))
                             .collect(Collectors.toSet());
+
+                    // After constructing the children, we no longer need the Owns
+                    // object. Release it to reclaim some memory.
+                    this.owns = null;
                 }
 
                 // Continue deepening the tree.
                 this.children.parallelStream()
                         .forEach(child -> child.deepen(maxDepth - 1));
-
-                // Prune any branches with negative value before calculating
-                // the statistics. We won't ever be forced to make a bid that is
-                // considered worse than doing nothing.
-                this.children = this.children.stream()
-                        .filter(child -> child.estimatedTotalValue > 0)
-                        .collect(Collectors.toSet());
 
                 // If there are any children, calculate average values, etc.
                 if (this.children.size() > 0) {
@@ -234,32 +228,8 @@ public class HotelTree {
         }
 
         /**
-         * Gets allowed hotel rooms for the current node.
-         *
-         * The rooms are restricted such that no rooms with lower auction
-         * numbers than the one that brought us to this node can be reserved.
-         * This is done in order to avoid creating duplicate branches, e.g. a
-         * branch for Cheap_1 -> Cheap_2 and another for Cheap_2 -> Cheap_1.
-         *
-         * Additionally, a maximum of eight reservations are allowed for each
-         * room. While more could be useful, this drastically reduces the
-         * potential size of the tree.
-         *
-         * @return The set of allowed hotel rooms.
-         */
-        private Set<Item> getAllowedRooms() {
-            if (this.room == null) {
-                return Item.ROOMS;
-            }
-            return Item.ROOMS.stream()
-                    .filter(room -> room.flatIndex >= this.room.flatIndex)
-                    .filter(room -> this.owns.get(room) < 8)                    // TODO evaluate usefulness
-                    .collect(Collectors.toSet());
-        }
-
-        /**
          * Calculates statistics related to the node's children.
-         *
+         * <p>
          * The average estimated total value and the variance in estimated total
          * value of the children, as well as the estimated total value of the
          * current node is calculated.
@@ -284,49 +254,107 @@ public class HotelTree {
             this.childValueVariance = variance;
             this.estimatedTotalValue = this.value + this.childValueAverage;
         }
+    }
+
+    // =========================================================================
+    // private class ActionFinder
+    // =========================================================================
+
+    /**
+     * Iteratively and selectively deepens the tree to find suggested actions.
+     * The most appropriate action is determined using a heuristic approach
+     * based on the given variance threshold and the estimated value of nodes.
+     * <p>
+     * The variance threshold determines the amount of risk that may be taken.
+     * The node with the highest estimated total value is selected from the
+     * nodes within the variance threshold. An action is added only if such a
+     * node exists and offers an estimated increase in profit.
+     */
+    private class ActionFinder implements Runnable {
 
         /**
-         * Adds the action required to get from this node to its most
-         * appropriate child to the provided queue.
-         *
-         * The most appropriate child is determined using the provided variance
-         * threshold, which determines the amount of risk that may be taken.
-         * The node with the highest estimated total value is selected from the
-         * nodes within the variance threshold. A move is added only if such a
-         * node exists and offers an estimated increase in profit.
-         *
-         * @param actions The queue of actions where the action will be added.
-         * @param varianceThreshold The variance threshold, determining the
-         *                          level of risk-taking behavior.
+         * The suggested actions found.
          */
-        public void addSuggestedActions(Queue<SuggestedAction> actions,
-                                        double varianceThreshold) {
+        private final Queue<SuggestedAction> actions;
 
-            // If the node has no children then there are no more actions to add.
-            if (this.children != null && this.children.size() > 0) {
+        /**
+         * The variance threshold specifies the level of risk-taking behavior.
+         */
+        private final double varianceThreshold;
 
-                // Find the most valuable child within the variance threshold.
-                Node nextNode = this.children.stream()
-                        .filter(child ->
-                                child.childValueVariance < varianceThreshold)
-                        .max((a, b) -> Double.compare(
-                                        a.estimatedTotalValue,
-                                        b.estimatedTotalValue))
-                        .get();
+        /**
+         * The depth of vision specifies the depth to which the tree is grown
+         * before an action is selected. This deepening is performed iteratively
+         * for each selected action.
+         * <p>
+         * For example, a value of two would deepen the tree by two levels
+         * before each action is selected.
+         */
+        private final int depthOfVision;
 
-                // No action is added if no next node could be selected or if
-                // even the selected node represents a bad choice.
-                if (nextNode != null && nextNode.estimatedTotalValue >= 0) {
-
-                    // Add the action required to get to the next node.
-                    actions.add(new SuggestedAction(nextNode.room, nextNode.value));
-
-                    // Let the next node add more actions, recursively.
-                    nextNode.addSuggestedActions(actions, varianceThreshold);
-                }
-            }
+        /**
+         * Constructs a new ActionFinder object.
+         *
+         * @param varianceThreshold The variance threshold specifies the level
+         *                          of risk-taking behavior.
+         * @param depthOfVision     The depth of vision specifies the depth to which
+         *                          the tree is grown before an action is selected.
+         */
+        public ActionFinder(double varianceThreshold, int depthOfVision) {
+            this.actions = new LinkedList<>();
+            this.varianceThreshold = varianceThreshold;
+            this.depthOfVision = depthOfVision;
         }
 
+        /**
+         * Gets the queue of suggested actions, in the order found.
+         *
+         * @return The suggested actions.
+         */
+        public Queue<SuggestedAction> getSuggestedActions() {
+            return actions;
+        }
+
+        /**
+         * Runs the ActionFinder.
+         * Deepens the tree and puts the suggested actions in the queue.
+         * Continues until the tree ends, unless interrupted.
+         */
+        @Override
+        public void run() {
+            // Start the search at the root.
+            Node node = HotelTree.this.root;
+
+            // Keep searching until interrupted.
+            while (node != null && !Thread.currentThread().isInterrupted()) {
+
+                // Deepen the tree in which this node is root.
+                node.deepen(depthOfVision);
+
+                // Extra interrupt check, as deepening might've taken a while.
+                if (Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+
+                // Find the most valuable child within the variance threshold.
+                Node nextNode = node.children.stream()
+                        .filter(child ->
+                                child.childValueVariance < varianceThreshold
+                                        && child.estimatedTotalValue >= 0)
+                        .max((a, b) -> Double.compare(
+                                a.estimatedTotalValue,
+                                b.estimatedTotalValue))
+                        .orElse(null);
+
+                if (nextNode != null) {
+                    // Save the action necessary to get to this node.
+                    actions.add(new SuggestedAction(nextNode.room, nextNode.value));
+                }
+
+                // Move on to the next node.
+                node = nextNode;
+            }
+        }
     }
 
     // =========================================================================
@@ -335,7 +363,7 @@ public class HotelTree {
 
     public static void main(String[] args) {
 
-        Owns owns = new Owns(new int[] {
+        Owns owns = new Owns(new int[]{
                 0, 0, 0, 0,
                 0, 0, 0, 0,
 
@@ -349,45 +377,44 @@ public class HotelTree {
                 0, 0, 0, 0,
         });
 
-        Prices prices = new Prices(new int[] {
-                  0,   0,   0,   0,
-                  0,   0,   0,   0,
-                 12,  21,  12,  21,
+        Prices prices = new Prices(new int[]{
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                12, 21, 12, 21,
                 123, 321, 123, 321,
-                  0,   0,   0,   0,
-                  0,   0,   0,   0,
-                  0,   0,   0,   0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
+                0, 0, 0, 0,
         });
 
-        Preferences preferences = new Preferences(new int[][] {
-                { 1, 3,  72,  77,  78,  37 },
-                { 2, 3,  55, 193, 180, 111 },
-                { 1, 3, 112,  67, 149, 177 },
-                { 1, 2,  87,  74,  72, 167 },
-                { 2, 3, 110,  68, 193, 148 },
-                { 1, 2,  69,  87, 142, 189 },
-                { 1, 3,  67,  78, 154,  67 },
-                { 1, 4, 140, 141,   3,  23 },
+        Preferences preferences = new Preferences(new int[][]{
+                {1, 3, 72, 77, 78, 37},
+                {2, 3, 55, 193, 180, 111},
+                {1, 3, 112, 67, 149, 177},
+                {1, 2, 87, 74, 72, 167},
+                {2, 3, 110, 68, 193, 148},
+                {1, 2, 69, 87, 142, 189},
+                {1, 3, 67, 78, 154, 67},
+                {1, 4, 140, 141, 3, 23},
         });
 
         Cache cache = new Cache(preferences);
 
-        Stopwatch.start();
-        HotelTree tree = new HotelTree(cache, prices, owns, 13, false);
-        long time = Stopwatch.stop();
-        System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
+        HotelTree tree = new HotelTree(cache, prices, owns);
 
+        double varianceThreshold = Double.MAX_VALUE;
+        int fieldOfVision = 2;
+        Duration maxTime = Duration.ofSeconds(15);
+
+        long time = System.nanoTime();
+        Queue<SuggestedAction> actions = tree.getSuggestedActions(
+                varianceThreshold, fieldOfVision, maxTime);
+        time = System.nanoTime() - time;
+
+        System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
         System.out.println("Node count: " + tree.nodeCount);
-
-        Stopwatch.start();
-        Queue<SuggestedAction> actions = tree.getSuggestedActions(1000000);
-        time = Stopwatch.stop();
-        System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
-        for (SuggestedAction action : actions) {
-            System.out.println(action.item.toString() + ": " + action.maxPrice);
-        }
+        actions.forEach(System.out::println);
 
         cache.stop();
     }
-
 }
