@@ -70,16 +70,11 @@ public class Agent007 extends AgentImpl {
     @Override
     protected void init(ArgEnumerator args) {
         System.out.println("Initializing.");
-        this.preferences = fillPreferences();
-        this.prices = new Prices();
-        this.owned = new Owns();
-        this.probablyOwned = new Owns();
-        this.utilityCache = new Cache(this.preferences);
     }
 
     @Override
     public void quoteUpdated(Quote quote) {
-        System.out.printf("Quote updated: %d\n\tAskPrice: %f\n",
+        System.out.printf("Quote updated: %d\n  AskPrice: %f\n",
                 quote.getAuction(), quote.getAskPrice());
         updatePrice(quote);
         updateOwns(quote.getAuction());
@@ -90,14 +85,6 @@ public class Agent007 extends AgentImpl {
     public void quoteUpdated(int auctionCategory) {
         System.out.printf("All quotes updated for %s\n",
                 agent.auctionCategoryToString(auctionCategory));
-        // Update the stored information for every action in the category.
-        for (int day = 1; day <= 5; day++) {
-            for (int type = 0; type < 7; type++) {
-                int auction = TACAgent.getAuctionFor(auctionCategory, type, day);
-                updatePrice(agent.getQuote(auction));
-                updateOwns(auction);
-            }
-        }
     }
 
     @Override
@@ -113,7 +100,7 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void bidUpdated(Bid bid) {
-        System.out.printf("Bid updated: %d\n\tAuction: %d\n\tState: %s\n",
+        System.out.printf("Bid updated: %d\n  Auction: %d\n  State: %s\n",
                 bid.getID(), bid.getAuction(), bid.getProcessingStateAsString());
         int auction = bid.getAuction();
         updatePrice(agent.getQuote(auction));
@@ -136,7 +123,14 @@ public class Agent007 extends AgentImpl {
     @Override
     public void gameStarted() {
         System.out.printf("Game %d started.\n", agent.getGameID());
+
         // TODO
+        this.preferences = fillPreferences();
+        this.prices = new Prices();
+        this.owned = new Owns();
+        this.probablyOwned = new Owns();
+        this.utilityCache = new Cache(this.preferences);
+
         placeHotelBids();
     }
 
@@ -159,6 +153,7 @@ public class Agent007 extends AgentImpl {
                 prefs[client][type] = agent.getClientPreference(client, type);
             }
         }
+        System.out.println(Arrays.deepToString(prefs));
         return new Preferences(prefs);
     }
 
@@ -195,7 +190,7 @@ public class Agent007 extends AgentImpl {
                 this.owned);
         Queue<SuggestedAction> actions = tree.getSuggestedActions(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
-        Map<Item, List<BidPoint>> bids = mapSuggestedActionsToBids(actions);
+        Map<Item, List<BidPoint>> bids = convertActionsToBids(actions);
 
         System.out.println("Submitting hotel bids:");
         for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
@@ -208,7 +203,7 @@ public class Agent007 extends AgentImpl {
             for (BidPoint bidPoint : entry.getValue()) {
                 alloc += bidPoint.quantity;
                 bid.addBidPoint(bidPoint.quantity, bidPoint.price);
-                System.out.printf("\t%d x %d\n",
+                System.out.printf("  %d x %d\n",
                         bidPoint.quantity, bidPoint.price);
             }
 
@@ -217,7 +212,7 @@ public class Agent007 extends AgentImpl {
         }
     }
 
-    private Map<Item, List<BidPoint>> mapSuggestedActionsToBids(
+    private Map<Item, List<BidPoint>> convertActionsToBids(
             Queue<SuggestedAction> actions) {
 
         // Count the number of occurrences.
@@ -228,7 +223,7 @@ public class Agent007 extends AgentImpl {
                 counts.put(action.item, new HashMap<>());
             }
             counts.get(action.item)
-                    .compute(action.maxPrice, (k, v) -> v == null ? 0 : v + 1);
+                    .compute(action.maxPrice, (k, v) -> v == null ? 1 : v + 1);
         }
         // Replace inner Map with BidPoint list.
         Map<Item, List<BidPoint>> bids = new EnumMap<>(Item.class);
