@@ -71,6 +71,15 @@ public enum Item {
     }
 
     /**
+     * Returns the item's auction number.
+     *
+     * @return The auction number.
+     */
+    public int getAuctionNumber() {
+        return this.ordinal();
+    }
+
+    /**
      * A set of all hotel rooms.
      */
     public static final Set<Item> ROOMS = EnumSet.of(

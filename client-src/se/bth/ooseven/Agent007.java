@@ -7,6 +7,8 @@ import se.sics.tac.aw.TACAgent;
 import se.sics.tac.util.ArgEnumerator;
 
 import java.time.Duration;
+import java.util.*;
+import java.util.stream.Collectors;
 
 public class Agent007 extends AgentImpl {
 
@@ -67,6 +69,7 @@ public class Agent007 extends AgentImpl {
 
     @Override
     protected void init(ArgEnumerator args) {
+        System.out.println("Initializing.");
         this.preferences = fillPreferences();
         this.prices = new Prices();
         this.owned = new Owns();
@@ -76,6 +79,8 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void quoteUpdated(Quote quote) {
+        System.out.printf("Quote updated: %d\n\tAskPrice: %f\n",
+                quote.getAuction(), quote.getAskPrice());
         updatePrice(quote);
         updateOwns(quote.getAuction());
         // TODO submit updated bid if possiblyOwned < wanted.
@@ -83,6 +88,8 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void quoteUpdated(int auctionCategory) {
+        System.out.printf("All quotes updated for %s\n",
+                agent.auctionCategoryToString(auctionCategory));
         // Update the stored information for every action in the category.
         for (int day = 1; day <= 5; day++) {
             for (int type = 0; type < 7; type++) {
@@ -95,35 +102,47 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void auctionClosed(int auction) {
+        System.out.printf("Auction closed: %d\n", auction);
         // Set the price to MAX_VALUE as it cannot be bought.
         Item item = Item.getItemByAuctionNumber(auction);
         this.prices.set(item, Integer.MAX_VALUE);
         updateOwns(auction);
+
+        placeHotelBids();
     }
 
     @Override
     public void bidUpdated(Bid bid) {
+        System.out.printf("Bid updated: %d\n\tAuction: %d\n\tState: %s\n",
+                bid.getID(), bid.getAuction(), bid.getProcessingStateAsString());
         int auction = bid.getAuction();
         updatePrice(agent.getQuote(auction));
     }
 
     @Override
     public void bidRejected(Bid bid) {
+        System.out.printf("Bid rejected: %d. Reason: %s (%s)\n",
+                bid.getID(), bid.getRejectReason(), bid.getRejectReasonAsString());
         // TODO
     }
 
     @Override
     public void bidError(Bid bid, int status) {
+        System.out.printf("Bid error in auction %d: %s (%s)\n",
+                bid.getAuction(), status, agent.commandStatusToString(status));
         // TODO
     }
 
     @Override
     public void gameStarted() {
+        System.out.printf("Game %d started.\n", agent.getGameID());
         // TODO
+        placeHotelBids();
     }
 
     @Override
     public void gameStopped() {
+        System.out.println("Game stopped.");
         this.utilityCache.stop();
     }
 
@@ -169,6 +188,58 @@ public class Agent007 extends AgentImpl {
 
         int probabilyOwned = owned + agent.getProbablyOwn(auction);
         this.probablyOwned.set(item, owned + probabilyOwned);
+    }
+
+    private void placeHotelBids() {
+        HotelTree tree = new HotelTree(this.utilityCache, this.prices,
+                this.owned);
+        Queue<SuggestedAction> actions = tree.getSuggestedActions(
+                HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
+        Map<Item, List<BidPoint>> bids = mapSuggestedActionsToBids(actions);
+
+        System.out.println("Submitting hotel bids:");
+        for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
+            Item item = entry.getKey();
+            int auction = entry.getKey().getAuctionNumber();
+            int alloc = this.owned.get(item);
+            Bid bid = new Bid(auction);
+
+            System.out.printf("Bids for item: %s\n", item);
+            for (BidPoint bidPoint : entry.getValue()) {
+                alloc += bidPoint.quantity;
+                bid.addBidPoint(bidPoint.quantity, bidPoint.price);
+                System.out.printf("\t%d x %d\n",
+                        bidPoint.quantity, bidPoint.price);
+            }
+
+            agent.submitBid(bid);
+            agent.setAllocation(auction, alloc);
+        }
+    }
+
+    private Map<Item, List<BidPoint>> mapSuggestedActionsToBids(
+            Queue<SuggestedAction> actions) {
+
+        // Count the number of occurrences.
+        // Item => (Price => Quantity)
+        Map<Item, Map<Integer, Integer>> counts = new EnumMap<>(Item.class);
+        for (SuggestedAction action : actions) {
+            if (!counts.containsKey(action.item)) {
+                counts.put(action.item, new HashMap<>());
+            }
+            counts.get(action.item)
+                    .compute(action.maxPrice, (k, v) -> v == null ? 0 : v + 1);
+        }
+        // Replace inner Map with BidPoint list.
+        Map<Item, List<BidPoint>> bids = new EnumMap<>(Item.class);
+        for (Map.Entry<Item, Map<Integer, Integer>> entry : counts.entrySet()) {
+            Item item = entry.getKey();
+            List<BidPoint> bidPoints = entry.getValue().entrySet().stream()
+                    .map(e -> new BidPoint(e.getValue(), e.getKey()))
+                    .collect(Collectors.toList());
+            bids.put(item, bidPoints);
+        }
+        return bids;
     }
 
     /**
