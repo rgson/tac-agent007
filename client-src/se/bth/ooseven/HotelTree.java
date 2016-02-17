@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
+import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
@@ -86,7 +87,7 @@ public class HotelTree {
         Thread finderThread = new Thread(finder, "HotelTree.ActionFinder");
         try {
             // Run the finder for at most maxTime.
-            finderThread.run();
+            finderThread.start();
             finderThread.join(maxTime.toMillis());
         } catch (InterruptedException e) {
             // Re-interrupt the current thread.
@@ -198,7 +199,7 @@ public class HotelTree {
          * @param maxDepth The maximum depth to build the tree. Used for iterative
          *                 deepening.
          */
-        private void deepen(int maxDepth) {
+        private synchronized void deepen(int maxDepth) {
             // Only deepen until the max depth is reached.
             if (maxDepth > 0) {
 
@@ -209,6 +210,7 @@ public class HotelTree {
                     this.children = Item.ROOMS.stream()
                             .filter(room -> this.owns.get(room) < 16) // Only 16 copies of each rooms exist.
                             .map(room -> new Node(this, room))
+                            .filter(child -> child.value >= 0)  // Better to stop than to choose a bad path.
                             .collect(Collectors.toSet());
 
                     // After constructing the children, we no longer need the Owns
@@ -234,7 +236,7 @@ public class HotelTree {
          * value of the children, as well as the estimated total value of the
          * current node is calculated.
          */
-        private void calculateStatistics() {
+        private synchronized void calculateStatistics() {
             // Prepare the values of possible choices.
             double[] values = DoubleStream.concat(
                     DoubleStream.of(0), // Doing nothing is also a possibility.
@@ -403,7 +405,7 @@ public class HotelTree {
         HotelTree tree = new HotelTree(cache, prices, owns);
 
         double varianceThreshold = Double.MAX_VALUE;
-        int fieldOfVision = 2;
+        int fieldOfVision = 5;
         Duration maxTime = Duration.ofSeconds(15);
 
         long time = System.nanoTime();
