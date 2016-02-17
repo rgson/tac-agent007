@@ -1,4 +1,6 @@
 tacagent.jar
+*.log
+*.log.lck
 
 # IntelliJ IDEA
 .idea/
