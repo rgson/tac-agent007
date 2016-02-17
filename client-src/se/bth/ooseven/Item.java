@@ -86,6 +86,10 @@ public enum Item {
             OUTFLIGHT_1, OUTFLIGHT_2, OUTFLIGHT_3, OUTFLIGHT_4
     );
 
+    public static Item getItemByAuctionNumber(int auctionNumber) {
+        return Item.values()[auctionNumber];
+    }
+
     // =========================================================================
     // public enum Type
     // =========================================================================

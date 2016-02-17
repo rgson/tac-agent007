@@ -22,6 +22,13 @@ public class Prices {
     private final int[] prices;
 
     /**
+     * Constructs a new Prices object with all prices initialized to 0.
+     */
+    public Prices() {
+        this.prices = new int[28];
+    }
+
+    /**
      * Constructs a new Prices object.
      *
      * @param prices An array of prices, following the agent's format.
@@ -46,7 +53,17 @@ public class Prices {
      * @return The current price of the item.
      */
     public int get(Item item) {
-        return prices[item.flatIndex];
+        return this.prices[item.flatIndex];
+    }
+
+    /**
+     * Sets the current price of a specific item.
+     *
+     * @param item The item.
+     * @param price The new price.
+     */
+    public void set(Item item, int price) {
+        this.prices[item.flatIndex] = price;
     }
 
 }

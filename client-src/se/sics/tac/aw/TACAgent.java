@@ -27,19 +27,15 @@
  */
 
 package se.sics.tac.aw;
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import se.sics.tac.util.ArgEnumerator;
+import se.sics.tac.util.LogFormatter;
+
+import javax.swing.table.AbstractTableModel;
+import java.io.*;
 import java.util.Properties;
 import java.util.logging.FileHandler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import javax.swing.table.AbstractTableModel;
-
-import se.sics.tac.util.ArgEnumerator;
-import se.sics.tac.util.LogFormatter;
 
 public class TACAgent implements Task, TACMessageReceiver {
 

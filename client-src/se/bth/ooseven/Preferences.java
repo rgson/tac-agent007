@@ -9,8 +9,8 @@ public class Preferences {
      * [0 - 7][1] Departure day (2-5)
      * [0 - 7][2] Hotel bonus
      * [0 - 7][3] Alligator wrestling bonus
-     * [0 - 7][3] Amusement bonus
-     * [0 - 7][3] Museum bonus
+     * [0 - 7][4] Amusement bonus
+     * [0 - 7][5] Museum bonus
      */
 
     /**

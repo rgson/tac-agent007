@@ -42,6 +42,15 @@ public class Owns {
     private final int[][] ownedItems;
 
     /**
+     * Constructs a new Owns object with all quantities initialized to 0.
+     */
+    public Owns() {
+        final int DAYS = 5;
+        final int TYPES = 7;
+        this.ownedItems = new int[DAYS][TYPES];
+    }
+
+    /**
      * Constructs an Owns object from the agent's format.
      * @param owns The agent's format representation of owned items.
      */
