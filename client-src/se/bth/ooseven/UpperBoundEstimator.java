@@ -54,8 +54,9 @@ class UpperBoundEstimator {
         return new Interval(min, max);
     }
     
-    public static double[] reverseIfElse(int delta) {
-    
+    public static Set<Double> reverseIfElse(int delta) {
+        // Consindering only two cases sice xt==0 should be rare
+        
     }
     
     /**
