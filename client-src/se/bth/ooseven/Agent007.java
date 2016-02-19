@@ -40,36 +40,16 @@ public class Agent007 extends AgentImpl {
      */
     private static final Duration HOTEL_MAX_TIME = Duration.ofSeconds(30);
 
+    /**
+     * The factor of how much to bid for a room, in relation to the maximum
+     * amount possible before losing score by purchasing. A higher value lowers
+     * the expected profit margin.
+     */
+    private static final float HOTEL_BID_FACTOR = 0.8f;
+
     // =========================================================================
     // Agent implementation
     // =========================================================================
-
-    /**
-     * The clients' preferences.
-     */
-    private Preferences preferences;
-
-    /**
-     * The saved prices.
-     */
-    private Prices prices;
-
-    /**
-     * The owned items.
-     */
-    private Owns owned;
-
-    /**
-     * The probably owned items (owned items + items we're likely to win).
-     */
-    private Owns probablyOwned;
-
-    /**
-     * A cache of utility value calculations for various configurations of
-     * owned items.
-     */
-    private Cache utilityCache;
-
 
     static {
         // Change the log level of the FastOptimizer's Logger to avoid spam.
@@ -79,6 +59,37 @@ public class Agent007 extends AgentImpl {
         } else {
             System.err.println("Failed to find the FastOptimizer's Logger.");
         }
+    }
+
+    /**
+     * The clients' preferences.
+     */
+    private Preferences preferences;
+    /**
+     * The saved prices.
+     */
+    private Prices prices;
+    /**
+     * The owned items.
+     */
+    private Owns owned;
+    /**
+     * The probably owned items (owned items + items we're likely to win).
+     */
+    private Owns probablyOwned;
+    /**
+     * A cache of utility value calculations for various configurations of
+     * owned items.
+     */
+    private Cache utilityCache;
+
+    /**
+     * Main method for backwards compatibility.
+     *
+     * @param args
+     */
+    public static void main(String[] args) {
+        TACAgent.main(args);
     }
 
     @Override
@@ -92,7 +103,33 @@ public class Agent007 extends AgentImpl {
                 quote.getAuction(), quote.getAskPrice());
         updatePrice(quote);
         updateOwns(quote.getAuction());
-        // TODO submit updated bid if possiblyOwned < wanted.
+
+        switch (TACAgent.getAuctionCategory(quote.getAuction())) {
+            case TACAgent.CAT_FLIGHT:
+                flightQuoteUpdated(quote);
+                break;
+
+            case TACAgent.CAT_HOTEL:
+                hotelQuoteUpdated(quote);
+                break;
+
+            case TACAgent.CAT_ENTERTAINMENT:
+                entertainmentQuoteUpdated(quote);
+                break;
+
+            default:
+                break;
+        }
+    }
+
+    private void entertainmentQuoteUpdated(Quote quote) {
+    }
+
+    private void hotelQuoteUpdated(Quote quote) {
+        placeHotelBids();
+    }
+
+    private void flightQuoteUpdated(Quote quote) {
     }
 
     @Override
@@ -109,15 +146,35 @@ public class Agent007 extends AgentImpl {
         this.prices.set(item, Integer.MAX_VALUE);
         updateOwns(auction);
 
-        placeHotelBids();
+        switch (TACAgent.getAuctionCategory(auction)) {
+            case TACAgent.CAT_FLIGHT:
+                flightAuctionClosed(auction);
+                break;
+            case TACAgent.CAT_HOTEL:
+                hotelAuctionClosed(auction);
+                break;
+            case TACAgent.CAT_ENTERTAINMENT:
+                entertainmentAuctionClosed(auction);
+                break;
+            default:
+                break;
+        }
+
+    }
+
+    private void flightAuctionClosed(int auction) {
+    }
+
+    private void hotelAuctionClosed(int auction) {
+    }
+
+    private void entertainmentAuctionClosed(int auction) {
     }
 
     @Override
     public void bidUpdated(Bid bid) {
         System.out.printf("Bid updated: %d\n  Auction: %d\n  State: %s\n",
                 bid.getID(), bid.getAuction(), bid.getProcessingStateAsString());
-        int auction = bid.getAuction();
-        updatePrice(agent.getQuote(auction));
     }
 
     @Override
@@ -138,7 +195,6 @@ public class Agent007 extends AgentImpl {
     public void gameStarted() {
         System.out.printf("Game %d started.\n", agent.getGameID());
 
-        // TODO
         this.preferences = fillPreferences();
         this.prices = new Prices();
         this.owned = new Owns();
@@ -194,8 +250,8 @@ public class Agent007 extends AgentImpl {
         int owned = agent.getOwn(auction);
         this.owned.set(item, owned);
 
-        int probabilyOwned = owned + agent.getProbablyOwn(auction);
-        this.probablyOwned.set(item, owned + probabilyOwned);
+        int probablyOwned = owned + agent.getProbablyOwn(auction);
+        this.probablyOwned.set(item, owned + probablyOwned);
     }
 
     private void placeHotelBids() {
@@ -203,7 +259,7 @@ public class Agent007 extends AgentImpl {
                 this.owned);
         Queue<SuggestedAction> actions = tree.getSuggestedActions(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
-        Map<Item, List<BidPoint>> bids = convertActionsToBids(actions);
+        Map<Item, List<BidPoint>> bids = convertSuggestionsToBids(actions);
 
         System.out.println("Submitting hotel bids:");
         for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
@@ -225,7 +281,7 @@ public class Agent007 extends AgentImpl {
         }
     }
 
-    private Map<Item, List<BidPoint>> convertActionsToBids(
+    private Map<Item, List<BidPoint>> convertSuggestionsToBids(
             Queue<SuggestedAction> actions) {
 
         // Count the number of occurrences.
@@ -235,8 +291,10 @@ public class Agent007 extends AgentImpl {
             if (!counts.containsKey(action.item)) {
                 counts.put(action.item, new HashMap<>());
             }
+
+            int price = (int)Math.ceil(action.maxPrice * HOTEL_BID_FACTOR);
             counts.get(action.item)
-                    .compute(action.maxPrice, (k, v) -> v == null ? 1 : v + 1);
+                    .compute(price, (k, v) -> v == null ? 1 : v + 1);
         }
         // Replace inner Map with BidPoint list.
         Map<Item, List<BidPoint>> bids = new EnumMap<>(Item.class);
@@ -248,15 +306,6 @@ public class Agent007 extends AgentImpl {
             bids.put(item, bidPoints);
         }
         return bids;
-    }
-
-    /**
-     * Main method for backwards compatibility.
-     *
-     * @param args
-     */
-    public static void main(String[] args) {
-        TACAgent.main(args);
     }
 
 }

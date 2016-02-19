@@ -125,8 +125,15 @@ public class HotelTree {
         /**
          * The value of this node, considering utility gain and cost.
          * value = utility - parent's utility - cost
+         * where cost = (price + 1) as any bid must be at least $1 higher.
          */
         private final int value;
+
+        /**
+         * The maximum price to pay for this node without losing money.
+         * max price = utility - parent's utility
+         */
+        private final int maxPrice;
 
         /**
          * The average value of the node's children.
@@ -162,6 +169,7 @@ public class HotelTree {
 
             this.utility = HotelTree.this.cache.calc(this.owns);
             this.value = this.utility;
+            this.maxPrice = this.utility;
             this.childValueAverage = 0;
             this.childValueVariance = 0;
             this.estimatedTotalValue = this.value;
@@ -183,8 +191,9 @@ public class HotelTree {
             this.owns.add(this.room, 1);
 
             this.utility = HotelTree.this.cache.calc(this.owns);
+            this.maxPrice = this.utility - parent.utility;
             this.value = this.utility - parent.utility -
-                    HotelTree.this.prices.get(this.room);
+                    (HotelTree.this.prices.get(this.room) + 1); // Must beat current price by at least $1.;
             this.childValueAverage = 0;
             this.childValueVariance = 0;
             this.estimatedTotalValue = this.value;
@@ -348,8 +357,9 @@ public class HotelTree {
                         .orElse(null);
 
                 if (nextNode != null) {
-                    // Save the action necessary to get to this node.
-                    actions.add(new SuggestedAction(nextNode.room, nextNode.value));
+                    // Save the suggested action to get to this node.
+                    actions.add(new SuggestedAction(nextNode.room,
+                            nextNode.maxPrice));
                 }
 
                 // Move on to the next node.
