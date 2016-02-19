@@ -364,7 +364,7 @@ public class Agent007 extends AgentImpl {
                 // Remove one from the allocation for this clients preferred
                 // departure date, as it's no longer needed.
                 preferredFlightAuction =
-                        this.preferences.getPreferredInflight(client).getAuctionNumber();
+                        this.preferences.getPreferredOutflight(client).getAuctionNumber();
                 agent.setAllocation(preferredFlightAuction,
                         agent.getAllocation(preferredFlightAuction) - 1);
             }
@@ -391,7 +391,7 @@ public class Agent007 extends AgentImpl {
         final int CLIENTS = 8;
         for (int client = 0; client < CLIENTS; client++) {
             Item inflight = Item.getInflightByDay(allocation.getArrival(client));
-            Item outflight = Item.getInflightByDay(allocation.getArrival(client));
+            Item outflight = Item.getOutflightByDay(allocation.getDeparture(client));
             counts.compute(inflight,
                     (k, v) -> v == null ? 1 : v + 1);
             counts.compute(outflight,
