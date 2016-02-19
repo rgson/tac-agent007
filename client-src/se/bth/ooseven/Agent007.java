@@ -44,6 +44,14 @@ public class Agent007 extends AgentImpl {
      */
     private static final float HOTEL_BID_FACTOR = 0.8f;
 
+    /**
+     * The threshold for automatic purchases of flight tickets. Any ticket
+     * matching a client's preference with a price below the threshold is bought
+     * until the allocation is filled.
+     */
+    private static final int FLIGHT_AUTOBUY_THRESHOLD = 300;
+
+
     // =========================================================================
     // Agent implementation
     // =========================================================================
@@ -96,10 +104,28 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void quoteUpdated(Quote quote) {
-        System.out.printf("Quote updated: %d\n  AskPrice: %f\n",
+        System.out.printf("Quote updated: %d\n  AskPrice: $%f\n",
                 quote.getAuction(), quote.getAskPrice());
 
         updatePrice(quote);
+
+        switch (TACAgent.getAuctionCategory(quote.getAuction())) {
+            case TACAgent.CAT_FLIGHT:
+                flightQuoteUpdated(quote);
+                break;
+        }
+    }
+
+    private void flightQuoteUpdated(Quote quote) {
+        int auction = quote.getAuction();
+        Item flight = Item.getItemByAuctionNumber(auction);
+        int price = (int) Math.ceil(quote.getAskPrice());
+        if (price <= FLIGHT_AUTOBUY_THRESHOLD) {
+            int missing = agent.getAllocation(auction) - this.owned.get(flight);
+            if (missing > 0) {
+                placeBid(flight, new BidPoint(missing, price));
+            }
+        }
     }
 
     @Override
@@ -108,16 +134,10 @@ public class Agent007 extends AgentImpl {
                 agent.auctionCategoryToString(auctionCategory));
 
         switch (auctionCategory) {
-            case TACAgent.CAT_FLIGHT:
-                allFlightQuotesUpdated();
-                break;
             case TACAgent.CAT_HOTEL:
                 allHotelQuotesUpdated();
                 break;
         }
-    }
-
-    private void allFlightQuotesUpdated() {
     }
 
     private void allHotelQuotesUpdated() {
@@ -153,7 +173,7 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void transaction(Transaction transaction) {
-        System.out.printf("Transaction:\n  Auction: %d\n  Quantity: %d\n  Price: %f",
+        System.out.printf("Transaction:\n  Auction: %d\n  Quantity: %d\n  Price: $%f\n",
                 transaction.getAuction(), transaction.getQuantity(), transaction.getPrice());
 
         updateOwns(transaction.getAuction());
@@ -170,6 +190,7 @@ public class Agent007 extends AgentImpl {
         this.utilityCache = new Cache(this.preferences);
 
         placeHotelBids();
+        calculatePreliminaryFlightAllocations();
     }
 
     @Override
@@ -193,6 +214,25 @@ public class Agent007 extends AgentImpl {
             }
         }
         return new Preferences(prefs);
+    }
+
+    /**
+     * Calculates the preliminary flight allocation based only on the clients'
+     * preferences.
+     */
+    private void calculatePreliminaryFlightAllocations() {
+        Map<Item, Integer> counts = new EnumMap<>(Item.class);
+        final int CLIENTS = 8;
+        for (int client = 0; client < CLIENTS; client++) {
+            counts.compute(this.preferences.getPreferredInflight(client),
+                    (k, v) -> v == null ? 1 : v + 1);
+            counts.compute(this.preferences.getPreferredOutflight(client),
+                    (k, v) -> v == null ? 1 : v + 1);
+        }
+        for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
+            int auction = entry.getKey().getAuctionNumber();
+            agent.setAllocation(auction, entry.getValue());
+        }
     }
 
     /**
@@ -223,6 +263,26 @@ public class Agent007 extends AgentImpl {
         this.probablyOwned.set(item, owned + probablyOwned);
     }
 
+    private void placeBid(Item item, BidPoint bidPoint) {
+        System.out.printf("Placing bids for item: %s\n", item);
+        Bid bid = new Bid(item.getAuctionNumber());
+        System.out.printf("  %d x $%d\n",
+                bidPoint.quantity, bidPoint.price);
+        bid.addBidPoint(bidPoint.quantity, bidPoint.price);
+        agent.submitBid(bid);
+    }
+
+    private void placeBid(Item item, List<BidPoint> bidPoints) {
+        System.out.printf("Placing bids for item: %s\n", item);
+        Bid bid = new Bid(item.getAuctionNumber());
+        for (BidPoint bidPoint : bidPoints) {
+            System.out.printf("  %d x $%d\n",
+                    bidPoint.quantity, bidPoint.price);
+            bid.addBidPoint(bidPoint.quantity, bidPoint.price);
+        }
+        agent.submitBid(bid);
+    }
+
     private void placeHotelBids() {
         HotelTree tree = new HotelTree(this.utilityCache, this.prices,
                 this.owned);
@@ -233,20 +293,13 @@ public class Agent007 extends AgentImpl {
         System.out.println("Submitting hotel bids:");
         for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
             Item item = entry.getKey();
-            int auction = entry.getKey().getAuctionNumber();
-            int alloc = this.owned.get(item);
-            Bid bid = new Bid(auction);
-
-            System.out.printf("Bids for item: %s\n", item);
-            for (BidPoint bidPoint : entry.getValue()) {
-                alloc += bidPoint.quantity;
-                bid.addBidPoint(bidPoint.quantity, bidPoint.price);
-                System.out.printf("  %d x %d\n",
-                        bidPoint.quantity, bidPoint.price);
-            }
-
-            agent.submitBid(bid);
-            agent.setAllocation(auction, alloc);
+            List<BidPoint> bidPoints = entry.getValue();
+            placeBid(item, bidPoints);
+            int totalBidQuantity = bidPoints.stream()
+                    .mapToInt(bidPoint -> bidPoint.quantity)
+                    .sum();
+            agent.setAllocation(item.getAuctionNumber(),
+                    this.owned.get(item) + totalBidQuantity);
         }
     }
 

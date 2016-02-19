@@ -35,4 +35,37 @@ public class Preferences {
         // TODO skip the copy? possibly redundant and costs memory/performance.
         return ArrayUtils.copyArray(this.prefs);
     }
+
+    /**
+     * Gets the preferred inflight for the specified client.
+     *
+     * @param client The client index.
+     * @return The preferred inflight.
+     */
+    public Item getPreferredInflight(int client) {
+        switch (this.prefs[client][0]) {
+            case 1: return Item.INFLIGHT_1;
+            case 2: return Item.INFLIGHT_2;
+            case 3: return Item.INFLIGHT_3;
+            case 4: return Item.INFLIGHT_4;
+        }
+        return null;
+    }
+
+    /**
+     * Gets the preferred outflight for the specified client.
+     *
+     * @param client The client index.
+     * @return The preferred outflight.
+     */
+    public Item getPreferredOutflight(int client) {
+        switch (this.prefs[client][1]) {
+            case 2: return Item.OUTFLIGHT_1;
+            case 3: return Item.OUTFLIGHT_2;
+            case 4: return Item.OUTFLIGHT_3;
+            case 5: return Item.OUTFLIGHT_4;
+        }
+        return null;
+    }
+
 }
