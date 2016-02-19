@@ -4,10 +4,13 @@ import se.sics.tac.aw.AgentImpl;
 import se.sics.tac.aw.Bid;
 import se.sics.tac.aw.Quote;
 import se.sics.tac.aw.TACAgent;
+import se.sics.tac.solver.FastOptimizer;
 import se.sics.tac.util.ArgEnumerator;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 public class Agent007 extends AgentImpl {
@@ -66,6 +69,17 @@ public class Agent007 extends AgentImpl {
      * owned items.
      */
     private Cache utilityCache;
+
+
+    static {
+        // Change the log level of the FastOptimizer's Logger to avoid spam.
+        Logger log = Logger.getLogger(FastOptimizer.class.getName());
+        if (log != null) {
+            log.setLevel(Level.INFO);
+        } else {
+            System.err.println("Failed to find the FastOptimizer's Logger.");
+        }
+    }
 
     @Override
     protected void init(ArgEnumerator args) {
@@ -153,7 +167,6 @@ public class Agent007 extends AgentImpl {
                 prefs[client][type] = agent.getClientPreference(client, type);
             }
         }
-        System.out.println(Arrays.deepToString(prefs));
         return new Preferences(prefs);
     }
 
