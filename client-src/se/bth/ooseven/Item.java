@@ -99,6 +99,26 @@ public enum Item {
         return Item.values()[auctionNumber];
     }
 
+    public static Item getInflightByDay(int day) {
+        switch (day) {
+            case 1: return INFLIGHT_1;
+            case 2: return INFLIGHT_2;
+            case 3: return INFLIGHT_3;
+            case 4: return INFLIGHT_4;
+            default: return null;
+        }
+    }
+
+    public static Item getOutflightByDay(int day) {
+        switch (day) {
+            case 2: return OUTFLIGHT_1;
+            case 3: return OUTFLIGHT_2;
+            case 4: return OUTFLIGHT_3;
+            case 5: return OUTFLIGHT_4;
+            default: return null;
+        }
+    }
+
     // =========================================================================
     // public enum Type
     // =========================================================================

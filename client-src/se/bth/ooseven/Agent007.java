@@ -49,7 +49,7 @@ public class Agent007 extends AgentImpl {
      * matching a client's preference with a price below the threshold is bought
      * until the allocation is filled.
      */
-    private static final int FLIGHT_AUTOBUY_THRESHOLD = 300;
+    private static final int FLIGHT_AUTOBUY_THRESHOLD = 200;
 
 
     // =========================================================================
@@ -87,6 +87,10 @@ public class Agent007 extends AgentImpl {
      * owned items.
      */
     private Cache utilityCache;
+    /**
+     * The number of closed hotel room auctions.
+     */
+    private int closedHotelAuctions;
 
     /**
      * Main method for backwards compatibility.
@@ -116,18 +120,6 @@ public class Agent007 extends AgentImpl {
         }
     }
 
-    private void flightQuoteUpdated(Quote quote) {
-        int auction = quote.getAuction();
-        Item flight = Item.getItemByAuctionNumber(auction);
-        int price = (int) Math.ceil(quote.getAskPrice());
-        if (price <= FLIGHT_AUTOBUY_THRESHOLD) {
-            int missing = agent.getAllocation(auction) - this.owned.get(flight);
-            if (missing > 0) {
-                placeBid(flight, new BidPoint(missing, price));
-            }
-        }
-    }
-
     @Override
     public void quoteUpdated(int auctionCategory) {
         System.out.printf("All quotes updated for %s\n",
@@ -140,10 +132,6 @@ public class Agent007 extends AgentImpl {
         }
     }
 
-    private void allHotelQuotesUpdated() {
-        placeHotelBids();
-    }
-
     @Override
     public void auctionClosed(int auction) {
         System.out.printf("Auction closed: %d\n", auction);
@@ -151,6 +139,14 @@ public class Agent007 extends AgentImpl {
         // Set the price to MAX_VALUE as it cannot be bought.
         Item item = Item.getItemByAuctionNumber(auction);
         this.prices.set(item, Integer.MAX_VALUE);
+
+        if (TACAgent.getAuctionCategory(auction) == TACAgent.CAT_HOTEL) {
+            this.closedHotelAuctions++;
+            if (this.closedHotelAuctions == 8) { // Last hotel auction closed.
+                // TODO check if transactions have come through before auctionClosed is called.
+                buyRemainingFlights();
+            }
+        }
     }
 
     @Override
@@ -188,9 +184,10 @@ public class Agent007 extends AgentImpl {
         this.owned = new Owns();
         this.probablyOwned = new Owns();
         this.utilityCache = new Cache(this.preferences);
+        this.closedHotelAuctions = 0;
 
-        placeHotelBids();
         calculatePreliminaryFlightAllocations();
+        updateHotelPlan();
     }
 
     @Override
@@ -198,6 +195,30 @@ public class Agent007 extends AgentImpl {
         System.out.println("Game stopped.");
 
         this.utilityCache.stop();
+    }
+
+    /**
+     * Called when a flight quote was updated.
+     *
+     * @param quote The updated quote.
+     */
+    private void flightQuoteUpdated(Quote quote) {
+        int auction = quote.getAuction();
+        Item flight = Item.getItemByAuctionNumber(auction);
+        int price = (int) Math.ceil(quote.getAskPrice());
+        if (price <= FLIGHT_AUTOBUY_THRESHOLD) {
+            int missing = agent.getAllocation(auction) - this.owned.get(flight);
+            if (missing > 0) {
+                placeBid(flight, new BidPoint(missing, price));
+            }
+        }
+    }
+
+    /**
+     * Called when the hotel room quotes are updated.
+     */
+    private void allHotelQuotesUpdated() {
+        updateHotelPlan();
     }
 
     /**
@@ -263,6 +284,12 @@ public class Agent007 extends AgentImpl {
         this.probablyOwned.set(item, owned + probablyOwned);
     }
 
+    /**
+     * Places a bid on an item.
+     *
+     * @param item     The item to bid on.
+     * @param bidPoint The bid point to constitute the bid.
+     */
     private void placeBid(Item item, BidPoint bidPoint) {
         System.out.printf("Placing bids for item: %s\n", item);
         Bid bid = new Bid(item.getAuctionNumber());
@@ -272,6 +299,12 @@ public class Agent007 extends AgentImpl {
         agent.submitBid(bid);
     }
 
+    /**
+     * Places a bid on an item.
+     *
+     * @param item      The item to bid on.
+     * @param bidPoints The bid points to constitute the bid.
+     */
     private void placeBid(Item item, List<BidPoint> bidPoints) {
         System.out.printf("Placing bids for item: %s\n", item);
         Bid bid = new Bid(item.getAuctionNumber());
@@ -283,14 +316,107 @@ public class Agent007 extends AgentImpl {
         agent.submitBid(bid);
     }
 
-    private void placeHotelBids() {
+    /**
+     * Updates the hotel room plan. Places updated bids for hotel rooms and buys
+     * any safe flights.
+     */
+    private void updateHotelPlan() {
         HotelTree tree = new HotelTree(this.utilityCache, this.prices,
                 this.owned);
-        Queue<SuggestedAction> actions = tree.getSuggestedActions(
+        HotelTree.Result result = tree.search(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
-        Map<Item, List<BidPoint>> bids = convertSuggestionsToBids(actions);
 
-        System.out.println("Submitting hotel bids:");
+        placeHotelBids(result.getSuggestedActions());
+        buySafeFlights(result.getTargetOwns());
+    }
+
+    /**
+     * Checks for and buys safe flights. Safe flights are flights for customers
+     * whose current room allocation is the same as the target room allocation
+     * (i.e. we've got all the rooms for the client).
+     *
+     * @param targetOwns The target state of owned items.
+     */
+    private void buySafeFlights(Owns targetOwns) {
+        Allocation target = new Allocation(targetOwns, this.preferences);
+        Allocation current = new Allocation(this.owned.withAllFlights(), this.preferences);
+        Map<Item, Integer> counts = new EnumMap<>(Item.class);
+
+        // TODO should not buy flight now if we can see that the price of that flight is decreasing
+
+        final int CLIENTS = 8;
+        for (int client = 0; client < CLIENTS; client++) {
+            if (Allocation.hasSameRoomAllocation(client, current, target)) {
+
+                // Add one to the count for this inflight.
+                Item flight = Item.getInflightByDay(current.getArrival(client));
+                counts.compute(flight, (k, v) -> v == null ? 1 : v + 1);
+                // Remove one from the allocation for this clients preferred
+                // arrival date, as it's no longer needed.
+                int preferredFlightAuction =
+                        this.preferences.getPreferredInflight(client).getAuctionNumber();
+                agent.setAllocation(preferredFlightAuction,
+                        agent.getAllocation(preferredFlightAuction) - 1);
+
+                // Add one to the count for this outflight.
+                flight = Item.getOutflightByDay(current.getDeparture(client));
+                counts.compute(flight, (k, v) -> v == null ? 1 : v + 1);
+                // Remove one from the allocation for this clients preferred
+                // departure date, as it's no longer needed.
+                preferredFlightAuction =
+                        this.preferences.getPreferredInflight(client).getAuctionNumber();
+                agent.setAllocation(preferredFlightAuction,
+                        agent.getAllocation(preferredFlightAuction) - 1);
+            }
+        }
+
+        for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
+            Item flight = entry.getKey();
+            int quantity = this.owned.get(flight) - entry.getValue();
+
+            if (quantity > 0) {
+                int price = this.prices.get(flight) + 500; // $500 buffer. Still only costs the actual ask price.
+                placeBid(flight, new BidPoint(quantity, price));
+            }
+        }
+    }
+
+    /**
+     * Buys all missing flights after the last hotel room auction has finished.
+     */
+    private void buyRemainingFlights() {
+        Allocation allocation = new Allocation(this.owned, this.preferences);
+        Map<Item, Integer> counts = new EnumMap<>(Item.class);
+
+        final int CLIENTS = 8;
+        for (int client = 0; client < CLIENTS; client++) {
+            Item inflight = Item.getInflightByDay(allocation.getArrival(client));
+            Item outflight = Item.getInflightByDay(allocation.getArrival(client));
+            counts.compute(inflight,
+                    (k, v) -> v == null ? 1 : v + 1);
+            counts.compute(outflight,
+                    (k, v) -> v == null ? 1 : v + 1);
+        }
+
+        for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
+            Item flight = entry.getKey();
+            int quantity = this.owned.get(flight) - entry.getValue();
+
+            if (quantity > 0) {
+                int price = this.prices.get(flight) + 500; // $500 buffer. Still only costs the actual ask price.
+                placeBid(flight, new BidPoint(quantity, price));
+            }
+        }
+    }
+
+    /**
+     * Places hotel bids according to the suggested actions.
+     *
+     * @param actions The suggested actions.
+     */
+    private void placeHotelBids(Queue<SuggestedAction> actions) {
+        System.out.println("Placing hotel bids:");
+        Map<Item, List<BidPoint>> bids = convertSuggestionsToBids(actions);
         for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
             Item item = entry.getKey();
             List<BidPoint> bidPoints = entry.getValue();
@@ -303,6 +429,12 @@ public class Agent007 extends AgentImpl {
         }
     }
 
+    /**
+     * Converts the suggested actions queue to BidPoints.
+     *
+     * @param actions The suggested action queue.
+     * @return A map of (item => BidPoints).
+     */
     private Map<Item, List<BidPoint>> convertSuggestionsToBids(
             Queue<SuggestedAction> actions) {
 
@@ -314,7 +446,7 @@ public class Agent007 extends AgentImpl {
                 counts.put(action.item, new HashMap<>());
             }
 
-            int price = (int)Math.ceil(action.maxPrice * HOTEL_BID_FACTOR);
+            int price = (int) Math.ceil(action.maxPrice * HOTEL_BID_FACTOR);
             counts.get(action.item)
                     .compute(price, (k, v) -> v == null ? 1 : v + 1);
         }

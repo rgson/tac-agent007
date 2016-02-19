@@ -1,9 +1,7 @@
 package se.bth.ooseven;
 
 import java.time.Duration;
-import java.util.LinkedList;
-import java.util.Queue;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
@@ -61,10 +59,7 @@ public class HotelTree {
 
         // Create a copy of the owned items, filled with all available flights.
         // Lets the solver determine the utilities without considering flights.
-        owns = new Owns(owns);
-        for (Item flight : Item.FLIGHTS) {
-            owns.set(flight, 8);
-        }
+        owns = owns.withAllFlights();
 
         this.root = new Node(owns);
     }
@@ -78,9 +73,8 @@ public class HotelTree {
      * @return A queue of suggested actions (bids), in the order they were taken
      * during the building of the tree.
      */
-    public Queue<SuggestedAction> getSuggestedActions(double varianceThreshold,
-                                                      int depthOfVision,
-                                                      Duration maxTime) {
+    public Result search(double varianceThreshold, int depthOfVision,
+                         Duration maxTime) {
 
         ActionFinder finder = new ActionFinder(varianceThreshold, depthOfVision);
         Thread finderThread = new Thread(finder, "HotelTree.ActionFinder");
@@ -95,7 +89,7 @@ public class HotelTree {
             // Time's up. Kindly ask the finder to terminate.
             finderThread.interrupt();
         }
-        return finder.getSuggestedActions();
+        return new Result(finder.getTargetOwns(), finder.getSuggestedActions());
     }
 
     // =========================================================================
@@ -220,10 +214,6 @@ public class HotelTree {
                             .map(room -> new Node(this, room))
                             .filter(child -> child.value >= 0)  // Better to stop than to choose a bad path.
                             .collect(Collectors.toSet());
-
-                    // After constructing the children, we no longer need the Owns
-                    // object. Release it to reclaim some memory.
-                    this.owns = null;
                 }
 
                 // Continue deepening the tree.
@@ -288,6 +278,11 @@ public class HotelTree {
         private final Queue<SuggestedAction> actions;
 
         /**
+         * The targeted inventory state of owned items.
+         */
+        private Owns owns;
+
+        /**
          * The variance threshold specifies the level of risk-taking behavior.
          */
         private final double varianceThreshold;
@@ -312,6 +307,7 @@ public class HotelTree {
          */
         public ActionFinder(double varianceThreshold, int depthOfVision) {
             this.actions = new LinkedList<>();
+            this.owns = null;
             this.varianceThreshold = varianceThreshold;
             this.depthOfVision = depthOfVision;
         }
@@ -323,6 +319,15 @@ public class HotelTree {
          */
         public Queue<SuggestedAction> getSuggestedActions() {
             return actions;
+        }
+
+        /**
+         * Gets the target state of owned rooms.
+         *
+         * @return The target state of owned rooms.
+         */
+        public Owns getTargetOwns() {
+            return owns;
         }
 
         /**
@@ -360,12 +365,63 @@ public class HotelTree {
                     // Save the suggested action to get to this node.
                     actions.add(new SuggestedAction(nextNode.room,
                             nextNode.maxPrice));
+                    owns = nextNode.owns;
                 }
 
                 // Move on to the next node.
                 node = nextNode;
             }
         }
+    }
+
+    // =========================================================================
+    // public class Result
+    // =========================================================================
+
+    /**
+     * Represents a set of results from the tree search.
+     */
+    public class Result {
+
+        /**
+         * The targeted state of owned rooms.
+         */
+        private final Owns owns;
+
+        /**
+         * The queue of suggested actions to reach the targeted state.
+         */
+        private final Queue<SuggestedAction> suggestedActions;
+
+        /**
+         * Constructs a new Results object.
+         *
+         * @param owns The targeted state of owned rooms.
+         * @param suggestedActions The queue of suggested actions to reach it.
+         */
+        private Result(Owns owns, Queue<SuggestedAction> suggestedActions) {
+            this.owns = owns;
+            this.suggestedActions = suggestedActions;
+        }
+
+        /**
+         * Gets the targeted state of owned rooms.
+         *
+         * @return The targeted state of owned rooms.
+         */
+        public Owns getTargetOwns() {
+            return this.owns;
+        }
+
+        /**
+         * Gets the queue of suggested actions to reach the target state.
+         *
+         * @return A queue of suggested actions.
+         */
+        public Queue<SuggestedAction> getSuggestedActions() {
+            return this.suggestedActions;
+        }
+
     }
 
     // =========================================================================
@@ -418,13 +474,12 @@ public class HotelTree {
         Duration maxTime = Duration.ofSeconds(15);
 
         long time = System.nanoTime();
-        Queue<SuggestedAction> actions = tree.getSuggestedActions(
-                varianceThreshold, fieldOfVision, maxTime);
+        Result result = tree.search(varianceThreshold, fieldOfVision, maxTime);
         time = System.nanoTime() - time;
 
         System.out.println("Time taken: " + (time / 1000000000D) + " sec.");
         System.out.println("Node count: " + tree.nodeCount);
-        actions.forEach(System.out::println);
+        result.getSuggestedActions().forEach(System.out::println);
 
         cache.stop();
     }

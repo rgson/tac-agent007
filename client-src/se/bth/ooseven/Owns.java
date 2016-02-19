@@ -171,4 +171,12 @@ public class Owns {
     public int hashCode() {
         return Arrays.deepHashCode(ownedItems);
     }
+
+    public Owns withAllFlights() {
+        Owns copy = new Owns(this);
+        for (Item flight : Item.FLIGHTS) {
+            copy.set(flight, 8);
+        }
+        return copy;
+    }
 }
