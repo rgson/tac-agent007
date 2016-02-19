@@ -33,17 +33,42 @@ class UpperBoundEstimator {
     
     /**
      *  Generate a Stream of Curves witch never had a datapoint outside their
-     *  possible range.
+     *  possible range and have an error of less than the average error.
      */
     public Stream<Curve> getPossibleCurves() {
-        return curves.stream().filter(c -> c.possible);
+        double avgError = getAvgError();
+        return curves.stream()
+                .filter(c -> c.possible)
+                .filter(c -> c.totalError <= avgError);
     }
     
     /**
      *  Returns the average error of all the possible curves.
      */
     public double getAvgError() {
-        return getPossibleCurves().mapToDouble(c -> c.totalError).average().getAsDouble();
+        return curves.stream()
+                .filter(c -> c.possible)
+                .mapToDouble(c -> c.totalError)
+                .average()
+                .getAsDouble();
+    }
+    
+    /**
+     *  Function for predicting a price change for a given Time and GameLength.
+     */
+    public int estimateChange(long timeInGame, int gameLength) {
+        double est = 0.0;
+        
+        List<Curve> possible = getPossibleCurves().collect(Collectors.toList());
+        Collections.sort(possible);
+        Collections.reverse(possible);
+        
+        for(Curve c : possible) {
+            est += getInterval(c.upperBound, timeInGame, gameLength).avg();
+            est /= 2;
+        }
+        
+        return (int) Math.round(est);
     }
     
     /**
@@ -111,7 +136,7 @@ class UpperBoundEstimator {
          *  Average value of the Interval.
          */
         public double avg() {
-            return Math.abs((double) (max-min))/2;
+            return (double) (max+min)/2;
         }
         
         /**
@@ -182,37 +207,6 @@ class UpperBoundEstimator {
      */
     public static double reverseX(double xt, long timeInGame, int gameLength) {
         return (gameLength*(xt-10) + (double) 10*timeInGame) / timeInGame;
-    }
-    
-    /**
-     *  Main Function for testing of this class.
-     */
-    public static void main(String[] argv) {
-        /** Length of this game in milliseconds */  // See se.sics.tac.server.Game, line 38
-        int  gameLength = 9*60 * 1000;              // See se.sics.tac.server.classic.ClassicMarket, line 46
-        long timeInGame = gameLength/2;               // Testvalue
-        
-        Random rand = new Random();
-        int  upperBound = -10 + rand.nextInt((30+10)+1);;
-        
-        UpperBoundEstimator est = new UpperBoundEstimator();
-        System.out.println("Actual upperBound: "+upperBound);
-        
-        for(int t=10*1000; t<=gameLength/2; t+=10*1000) {
-            int delta = getInterval(upperBound, t, gameLength).random();
-            
-            est.addPoint(delta, t, gameLength);
-        }
-        
-        double avgError = est.getAvgError();
-        ArrayList<Curve> possible = est.getPossibleCurves().filter(c -> c.totalError <= avgError).collect(Collectors.toCollection(ArrayList::new));
-        Collections.sort(possible);
-    
-        for(Curve c : possible) {
-            System.out.printf("%d; %d\n", c.upperBound, (int) c.totalError);
-        }
-        
-        System.out.println("Avg Error: "+avgError);
     }
 }
 
