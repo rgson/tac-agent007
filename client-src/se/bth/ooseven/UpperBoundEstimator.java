@@ -1,11 +1,103 @@
 package se.bth.ooseven;
 
+import java.util.stream.*;
+import java.util.*;
+
+/**
+ *  This class tries to estimate the hidden variable used by the server to
+ *  generate the price changes to flights.
+ *
+ *  To achieve this a curve-fittig algorithm is used.
+ */
+
 class UpperBoundEstimator {
-    
+    private final Set<Curve> curves;
+
+    /**
+     *  Sets up the set of all possible curves that are possible in the game.
+     */
     public UpperBoundEstimator() {
-    
+        this.curves = IntStream.range(-10, 30 + 1)
+                        .mapToObj(i -> new Curve(i))
+                        .collect(Collectors.toSet());
     }
     
+    /**
+     *  Add a new datapoint to the knowledgebase of this estimator.
+     * 
+     *  The values are directly passed to all curves
+     */
+    public void addPoint(int delta, long timeInGame, int gameLength) {
+        curves.stream().forEach(c -> c.addPoint(delta, timeInGame, gameLength));
+    }
+    
+    /**
+     *  Generate a Stream of Curves witch never had a datapoint outside their
+     *  possible range.
+     */
+    public Stream<Curve> getPossibleCurves() {
+        return curves.stream().filter(c -> c.possible);
+    }
+    
+    /**
+     *  Returns the average error of all the possible curves.
+     */
+    public double getAvgError() {
+        return getPossibleCurves().mapToDouble(c -> c.totalError).average().getAsDouble();
+    }
+    
+    /**
+     *  One possible curve, holding the upperBound and the error for all 
+     *  datapoints to this curve.
+     */
+    public class Curve implements Comparable<Curve> {
+        public final int upperBound;
+        public boolean possible  = true;
+        public double totalError = 0.0;
+        
+        public Curve(int upperBound) {
+            this.upperBound = upperBound;
+        }
+        
+        /**
+         *  Adds a datapoint to this curve. Changes the error and the checks
+         *  if this curve is still possible.
+         */
+        public void addPoint(int delta, long timeInGame, int gameLength) {
+            Interval interval = getInterval(upperBound, timeInGame, gameLength);
+            
+            possible &= interval.containins(delta);
+            
+            // Sum of smallest squares
+            totalError += Math.pow(((double) delta - interval.avg()), 2);
+        }
+        
+        /**
+         *  Compares the error of this curve to another one. Used for sorting.
+         */
+        public int compareTo(Curve other) {
+            if(this.possible && !other.possible) {
+                return -1;
+            }
+            
+            if(!this.possible && other.possible) {
+                return 1;
+            }
+            
+            return Double.compare(this.totalError, other.totalError);
+        }
+        
+        /**
+         *  Generate a String representation to this curve.
+         */
+        public String toString() {
+            return ""+upperBound+" (e="+totalError+")";
+        }
+    }
+    
+    /**
+     *  Helper class for representing an Interval (min to max).
+     */
     public static class Interval {
         public final int min;
         public final int max;
@@ -15,9 +107,41 @@ class UpperBoundEstimator {
             this.max = max;
         }
         
+        /**
+         *  Average value of the Interval.
+         */
+        public double avg() {
+            return Math.abs((double) (max-min))/2;
+        }
+        
+        /**
+         *  Check if a value lies within this Interval.
+         */
+        public boolean containins(int val) {
+            return (min <= val) && (val <= max);
+        }
+        
+        /**
+         *  Pick one random value from this Interval.
+         */
+        public int random() {
+            Random rand = new Random();
+            return min + rand.nextInt((max-min)+1);
+        }
+        
+        /**
+         *  String representation of this interval. Example: [23,42]
+         */
         public String toString() {
             return "["+min+","+max+"]";
         }
+    }
+    
+    /**
+     *  Get possible value according to upperBound and time
+     */
+    public static Interval getInterval(int upperBound, long timeInGame, int gameLength) {
+        return getInterval(x(upperBound, timeInGame, gameLength));
     }
     
     /**
@@ -34,29 +158,6 @@ class UpperBoundEstimator {
         } else {
             return new Interval(-10, 10);
         }
-    }
-    
-    /**
-     *  Calculates possible values for x(t) from a given Delta.
-     */
-    public static Interval getPossibleRange(int delta) {
-        int min = -10;
-        int max = 30;
-        
-        if(delta < -10) { // xt > 0
-            min = 0;
-        }
-        
-        if(delta > 10) { // xt < 0
-            max = 0;
-        }
-        
-        return new Interval(min, max);
-    }
-    
-    public static Set<Double> reverseIfElse(int delta) {
-        // Consindering only two cases sice xt==0 should be rare
-        
     }
     
     /**
@@ -90,11 +191,28 @@ class UpperBoundEstimator {
         /** Length of this game in milliseconds */  // See se.sics.tac.server.Game, line 38
         int  gameLength = 9*60 * 1000;              // See se.sics.tac.server.classic.ClassicMarket, line 46
         long timeInGame = gameLength/2;               // Testvalue
-        int  upperBound = 30;
         
-        for(int i=-10; i<=30; i++) {
-            System.out.printf("%d; %f\n", i, x(i,1,2));
+        Random rand = new Random();
+        int  upperBound = -10 + rand.nextInt((30+10)+1);;
+        
+        UpperBoundEstimator est = new UpperBoundEstimator();
+        System.out.println("Actual upperBound: "+upperBound);
+        
+        for(int t=10*1000; t<=gameLength/2; t+=10*1000) {
+            int delta = getInterval(upperBound, t, gameLength).random();
+            
+            est.addPoint(delta, t, gameLength);
         }
+        
+        double avgError = est.getAvgError();
+        ArrayList<Curve> possible = est.getPossibleCurves().filter(c -> c.totalError <= avgError).collect(Collectors.toCollection(ArrayList::new));
+        Collections.sort(possible);
+    
+        for(Curve c : possible) {
+            System.out.printf("%d; %d\n", c.upperBound, (int) c.totalError);
+        }
+        
+        System.out.println("Avg Error: "+avgError);
     }
 }
 
