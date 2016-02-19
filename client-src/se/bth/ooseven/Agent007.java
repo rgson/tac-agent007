@@ -1,9 +1,6 @@
 package se.bth.ooseven;
 
-import se.sics.tac.aw.AgentImpl;
-import se.sics.tac.aw.Bid;
-import se.sics.tac.aw.Quote;
-import se.sics.tac.aw.TACAgent;
+import se.sics.tac.aw.*;
 import se.sics.tac.solver.FastOptimizer;
 import se.sics.tac.util.ArgEnumerator;
 
@@ -101,74 +98,39 @@ public class Agent007 extends AgentImpl {
     public void quoteUpdated(Quote quote) {
         System.out.printf("Quote updated: %d\n  AskPrice: %f\n",
                 quote.getAuction(), quote.getAskPrice());
+
         updatePrice(quote);
-        updateOwns(quote.getAuction());
-
-        switch (TACAgent.getAuctionCategory(quote.getAuction())) {
-            case TACAgent.CAT_FLIGHT:
-                flightQuoteUpdated(quote);
-                break;
-
-            case TACAgent.CAT_HOTEL:
-                hotelQuoteUpdated(quote);
-                break;
-
-            case TACAgent.CAT_ENTERTAINMENT:
-                entertainmentQuoteUpdated(quote);
-                break;
-
-            default:
-                break;
-        }
-    }
-
-    private void entertainmentQuoteUpdated(Quote quote) {
-    }
-
-    private void hotelQuoteUpdated(Quote quote) {
-        placeHotelBids();
-    }
-
-    private void flightQuoteUpdated(Quote quote) {
     }
 
     @Override
     public void quoteUpdated(int auctionCategory) {
         System.out.printf("All quotes updated for %s\n",
                 agent.auctionCategoryToString(auctionCategory));
+
+        switch (auctionCategory) {
+            case TACAgent.CAT_FLIGHT:
+                allFlightQuotesUpdated();
+                break;
+            case TACAgent.CAT_HOTEL:
+                allHotelQuotesUpdated();
+                break;
+        }
+    }
+
+    private void allFlightQuotesUpdated() {
+    }
+
+    private void allHotelQuotesUpdated() {
+        placeHotelBids();
     }
 
     @Override
     public void auctionClosed(int auction) {
         System.out.printf("Auction closed: %d\n", auction);
+
         // Set the price to MAX_VALUE as it cannot be bought.
         Item item = Item.getItemByAuctionNumber(auction);
         this.prices.set(item, Integer.MAX_VALUE);
-        updateOwns(auction);
-
-        switch (TACAgent.getAuctionCategory(auction)) {
-            case TACAgent.CAT_FLIGHT:
-                flightAuctionClosed(auction);
-                break;
-            case TACAgent.CAT_HOTEL:
-                hotelAuctionClosed(auction);
-                break;
-            case TACAgent.CAT_ENTERTAINMENT:
-                entertainmentAuctionClosed(auction);
-                break;
-            default:
-                break;
-        }
-
-    }
-
-    private void flightAuctionClosed(int auction) {
-    }
-
-    private void hotelAuctionClosed(int auction) {
-    }
-
-    private void entertainmentAuctionClosed(int auction) {
     }
 
     @Override
@@ -181,14 +143,20 @@ public class Agent007 extends AgentImpl {
     public void bidRejected(Bid bid) {
         System.out.printf("Bid rejected: %d. Reason: %s (%s)\n",
                 bid.getID(), bid.getRejectReason(), bid.getRejectReasonAsString());
-        // TODO
     }
 
     @Override
     public void bidError(Bid bid, int status) {
         System.out.printf("Bid error in auction %d: %s (%s)\n",
                 bid.getAuction(), status, agent.commandStatusToString(status));
-        // TODO
+    }
+
+    @Override
+    public void transaction(Transaction transaction) {
+        System.out.printf("Transaction:\n  Auction: %d\n  Quantity: %d\n  Price: %f",
+                transaction.getAuction(), transaction.getQuantity(), transaction.getPrice());
+
+        updateOwns(transaction.getAuction());
     }
 
     @Override
@@ -207,6 +175,7 @@ public class Agent007 extends AgentImpl {
     @Override
     public void gameStopped() {
         System.out.println("Game stopped.");
+
         this.utilityCache.stop();
     }
 
