@@ -35,8 +35,8 @@ for t in range(0, 1001, 1):
     line = ""+ str(t/1000.0) +";"
     for ub in ubs:
         delta = priceDelta(t/1000.0, ub)
-        line += ""+ str(abs(delta[0]-delta[1])) +";"
-        #line += ""+ str((delta[0]+delta[1])/2) +";"
+        #line += ""+ str(abs(delta[0]-delta[1])) +";"
+        line += ""+ str((delta[0]+delta[1])/2) +";"
     print line
         
     
