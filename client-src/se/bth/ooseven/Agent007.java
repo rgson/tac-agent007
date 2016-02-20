@@ -91,6 +91,10 @@ public class Agent007 extends AgentImpl {
      * The number of closed hotel room auctions.
      */
     private int closedHotelAuctions;
+    /**
+     * Flag to signal the first update of flight quotes.
+     */
+    private boolean firstFlightQuoteUpdate;
 
     /**
      * Main method for backwards compatibility.
@@ -114,9 +118,7 @@ public class Agent007 extends AgentImpl {
         updatePrice(quote);
 
         switch (TACAgent.getAuctionCategory(quote.getAuction())) {
-            case TACAgent.CAT_FLIGHT:
-                flightQuoteUpdated(quote);
-                break;
+            case TACAgent.CAT_FLIGHT: flightQuoteUpdated(quote); break;
         }
     }
 
@@ -126,9 +128,8 @@ public class Agent007 extends AgentImpl {
                 agent.auctionCategoryToString(auctionCategory));
 
         switch (auctionCategory) {
-            case TACAgent.CAT_HOTEL:
-                allHotelQuotesUpdated();
-                break;
+            case TACAgent.CAT_HOTEL: allHotelQuotesUpdated(); break;
+            case TACAgent.CAT_FLIGHT: allFlightQuotesUpdated(); break;
         }
     }
 
@@ -185,8 +186,11 @@ public class Agent007 extends AgentImpl {
         this.probablyOwned = new Owns();
         this.utilityCache = new Cache(this.preferences);
         this.closedHotelAuctions = 0;
+        this.firstFlightQuoteUpdate = true;
 
-        calculatePreliminaryFlightAllocations();
+        // NOTE: The price quotes haven't been updated yet at this point.
+        // However, that doesn't matter for hotel rooms as the first quotes are
+        // always 0 anyway.
         updateHotelPlan();
     }
 
@@ -203,22 +207,60 @@ public class Agent007 extends AgentImpl {
      * @param quote The updated quote.
      */
     private void flightQuoteUpdated(Quote quote) {
-        int auction = quote.getAuction();
-        Item flight = Item.getItemByAuctionNumber(auction);
-        int price = (int) Math.ceil(quote.getAskPrice());
-        if (price <= FLIGHT_AUTOBUY_THRESHOLD) {
-            int missing = agent.getAllocation(auction) - this.owned.get(flight);
-            if (missing > 0) {
-                placeBid(flight, new BidPoint(missing, price));
+//        int auction = quote.getAuction();
+//        Item flight = Item.getItemByAuctionNumber(auction);
+//        int price = (int) Math.ceil(quote.getAskPrice());
+        // TODO probably do something with price prediction here?
+    }
+
+    /**
+     * Called when all the hotel room quotes have been updated.
+     */
+    private void allHotelQuotesUpdated() {
+        updateHotelPlan();
+    }
+
+    /**
+     * Called when all the flight quotes have been updated.
+     */
+    private void allFlightQuotesUpdated() {
+        if (firstFlightQuoteUpdate) {
+            firstFlightQuoteUpdate = false;
+            buyFlightsBelowThreshold();
+        }
+    }
+
+    /**
+     * Buys flights below the configurable threshold, taking only client
+     * preferences into consideration.
+     */
+    private void buyFlightsBelowThreshold() {
+        Map<Item, Integer> counts = countFlightPreferences();
+        for (Item flight : Item.FLIGHTS) {
+            int price = this.prices.get(flight);
+            if (price <= FLIGHT_AUTOBUY_THRESHOLD){
+                int missing = counts.get(flight) - this.owned.get(flight);
+                if (missing > 0) {
+                    placeBid(flight, new BidPoint(missing, price));
+                }
             }
         }
     }
 
     /**
-     * Called when the hotel room quotes are updated.
+     * Calculates the preliminary flight allocation based only on the clients'
+     * preferences.
      */
-    private void allHotelQuotesUpdated() {
-        updateHotelPlan();
+    private Map<Item, Integer> countFlightPreferences() {
+        Map<Item, Integer> counts = new EnumMap<>(Item.class);
+        final int CLIENTS = 8;
+        for (int client = 0; client < CLIENTS; client++) {
+            counts.compute(this.preferences.getPreferredInflight(client),
+                    (k, v) -> v == null ? 1 : v + 1);
+            counts.compute(this.preferences.getPreferredOutflight(client),
+                    (k, v) -> v == null ? 1 : v + 1);
+        }
+        return counts;
     }
 
     /**
@@ -235,25 +277,6 @@ public class Agent007 extends AgentImpl {
             }
         }
         return new Preferences(prefs);
-    }
-
-    /**
-     * Calculates the preliminary flight allocation based only on the clients'
-     * preferences.
-     */
-    private void calculatePreliminaryFlightAllocations() {
-        Map<Item, Integer> counts = new EnumMap<>(Item.class);
-        final int CLIENTS = 8;
-        for (int client = 0; client < CLIENTS; client++) {
-            counts.compute(this.preferences.getPreferredInflight(client),
-                    (k, v) -> v == null ? 1 : v + 1);
-            counts.compute(this.preferences.getPreferredOutflight(client),
-                    (k, v) -> v == null ? 1 : v + 1);
-        }
-        for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
-            int auction = entry.getKey().getAuctionNumber();
-            agent.setAllocation(auction, entry.getValue());
-        }
     }
 
     /**
