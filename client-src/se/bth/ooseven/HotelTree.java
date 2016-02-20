@@ -339,6 +339,7 @@ public class HotelTree {
         public void run() {
             // Start the search at the root.
             Node node = HotelTree.this.root;
+            this.owns = node.owns;
 
             // Keep searching until interrupted.
             while (node != null && !Thread.currentThread().isInterrupted()) {

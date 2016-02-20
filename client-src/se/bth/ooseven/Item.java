@@ -105,7 +105,9 @@ public enum Item {
             case 2: return INFLIGHT_2;
             case 3: return INFLIGHT_3;
             case 4: return INFLIGHT_4;
-            default: return null;
+            default:
+                System.err.printf("Invalid day for inflight: %d\n", day);
+                return null;
         }
     }
 
@@ -115,7 +117,9 @@ public enum Item {
             case 3: return OUTFLIGHT_2;
             case 4: return OUTFLIGHT_3;
             case 5: return OUTFLIGHT_4;
-            default: return null;
+            default:
+                System.err.printf("Invalid day for outflight: %d\n", day);
+                return null;
         }
     }
 

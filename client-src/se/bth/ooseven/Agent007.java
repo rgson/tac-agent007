@@ -90,7 +90,7 @@ public class Agent007 extends AgentImpl {
     /**
      * The number of closed hotel room auctions.
      */
-    private int closedHotelAuctions;
+    private int remainingHotelAuctions;
     /**
      * Flag to signal the first update of flight quotes.
      */
@@ -142,9 +142,9 @@ public class Agent007 extends AgentImpl {
         this.prices.set(item, Integer.MAX_VALUE);
 
         if (TACAgent.getAuctionCategory(auction) == TACAgent.CAT_HOTEL) {
-            this.closedHotelAuctions++;
-            if (this.closedHotelAuctions == 8) { // Last hotel auction closed.
-                // TODO check if transactions have come through before auctionClosed is called.
+            this.remainingHotelAuctions--;
+            System.out.printf("Hotel auctions remaining: %d\n", this.remainingHotelAuctions);
+            if (this.remainingHotelAuctions == 0) {
                 buyRemainingFlights();
             }
         }
@@ -185,7 +185,7 @@ public class Agent007 extends AgentImpl {
         this.owned = new Owns();
         this.probablyOwned = new Owns();
         this.utilityCache = new Cache(this.preferences);
-        this.closedHotelAuctions = 0;
+        this.remainingHotelAuctions = 8;
         this.firstFlightQuoteUpdate = true;
 
         // NOTE: The price quotes haven't been updated yet at this point.
@@ -239,9 +239,9 @@ public class Agent007 extends AgentImpl {
         for (Item flight : Item.FLIGHTS) {
             int price = this.prices.get(flight);
             if (price <= FLIGHT_AUTOBUY_THRESHOLD){
-                int missing = counts.get(flight) - this.owned.get(flight);
-                if (missing > 0) {
-                    placeBid(flight, new BidPoint(missing, price));
+                int quantity = counts.get(flight) - this.owned.get(flight);
+                if (quantity > 0) {
+                    placeBid(flight, new BidPoint(quantity, price));
                 }
             }
         }
@@ -288,6 +288,10 @@ public class Agent007 extends AgentImpl {
         Item item = Item.getItemByAuctionNumber(quote.getAuction());
         if (!quote.isAuctionClosed()) {
             this.prices.set(item, (int) Math.ceil(quote.getAskPrice()));
+        } else {
+            // As closed auctions can no longer be bought, the price is set to the maximum amount to strongly discourage
+            // such allocations.
+            this.prices.set(item, Integer.MAX_VALUE);
         }
     }
 
@@ -367,38 +371,30 @@ public class Agent007 extends AgentImpl {
 
         // TODO should not buy flight now if we can see that the price of that flight is decreasing
 
+        // Find safe tickets based on stable hotel room allocations.
         final int CLIENTS = 8;
         for (int client = 0; client < CLIENTS; client++) {
-            if (Allocation.hasSameRoomAllocation(client, current, target)) {
+            if (current.hasTravelPackage(client)
+                    && Allocation.hasSameRoomAllocation(client, current, target)) {
 
                 // Add one to the count for this inflight.
-                Item flight = Item.getInflightByDay(current.getArrival(client));
-                counts.compute(flight, (k, v) -> v == null ? 1 : v + 1);
-                // Remove one from the allocation for this clients preferred
-                // arrival date, as it's no longer needed.
-                int preferredFlightAuction =
-                        this.preferences.getPreferredInflight(client).getAuctionNumber();
-                agent.setAllocation(preferredFlightAuction,
-                        agent.getAllocation(preferredFlightAuction) - 1);
+                Item inflight = Item.getInflightByDay(current.getArrival(client));
+                counts.compute(inflight, (k, v) -> v == null ? 1 : v + 1);
 
                 // Add one to the count for this outflight.
-                flight = Item.getOutflightByDay(current.getDeparture(client));
-                counts.compute(flight, (k, v) -> v == null ? 1 : v + 1);
-                // Remove one from the allocation for this clients preferred
-                // departure date, as it's no longer needed.
-                preferredFlightAuction =
-                        this.preferences.getPreferredOutflight(client).getAuctionNumber();
-                agent.setAllocation(preferredFlightAuction,
-                        agent.getAllocation(preferredFlightAuction) - 1);
+                Item outflight = Item.getOutflightByDay(current.getDeparture(client));
+                counts.compute(outflight, (k, v) -> v == null ? 1 : v + 1);
             }
         }
 
+        // Buy the safe tickets.
         for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
             Item flight = entry.getKey();
-            int quantity = this.owned.get(flight) - entry.getValue();
-
+            int quantity = entry.getValue() - this.owned.get(flight);
             if (quantity > 0) {
-                int price = this.prices.get(flight) + 500; // $500 buffer. Still only costs the actual ask price.
+                // $500 buffer on the price, in case quotes are updated before the bid is registered.
+                // Still only costs the actual ask price.
+                int price = this.prices.get(flight) + 500;
                 placeBid(flight, new BidPoint(quantity, price));
             }
         }
@@ -408,25 +404,32 @@ public class Agent007 extends AgentImpl {
      * Buys all missing flights after the last hotel room auction has finished.
      */
     private void buyRemainingFlights() {
-        Allocation allocation = new Allocation(this.owned, this.preferences);
+        Allocation allocation = new Allocation(this.owned.withAllFlights(), this.preferences);
         Map<Item, Integer> counts = new EnumMap<>(Item.class);
 
+        // Count the desired flights.
         final int CLIENTS = 8;
         for (int client = 0; client < CLIENTS; client++) {
-            Item inflight = Item.getInflightByDay(allocation.getArrival(client));
-            Item outflight = Item.getOutflightByDay(allocation.getDeparture(client));
-            counts.compute(inflight,
-                    (k, v) -> v == null ? 1 : v + 1);
-            counts.compute(outflight,
-                    (k, v) -> v == null ? 1 : v + 1);
+            if (allocation.hasTravelPackage(client)) {
+
+                // Add one to the count for this inflight.
+                Item inflight = Item.getInflightByDay(allocation.getArrival(client));
+                counts.compute(inflight, (k, v) -> v == null ? 1 : v + 1);
+
+                // Add one to the count for this outflight.
+                Item outflight = Item.getOutflightByDay(allocation.getDeparture(client));
+                counts.compute(outflight, (k, v) -> v == null ? 1 : v + 1);
+            }
         }
 
+        // Buy the flights.
         for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
             Item flight = entry.getKey();
-            int quantity = this.owned.get(flight) - entry.getValue();
-
+            int quantity = entry.getValue() - this.owned.get(flight);
             if (quantity > 0) {
-                int price = this.prices.get(flight) + 500; // $500 buffer. Still only costs the actual ask price.
+                // $500 buffer on the price, in case quotes are updated before the bid is registered.
+                // Still only costs the actual ask price.
+                int price = this.prices.get(flight) + 500;
                 placeBid(flight, new BidPoint(quantity, price));
             }
         }
