@@ -45,6 +45,12 @@ public class Agent007 extends AgentImpl {
     private static final float HOTEL_BID_FACTOR = 0.8f;
 
     /**
+     * The factor of estimated price increase in hotel rooms.
+     * Due to the lack of historical data, this is simply a set parameter.
+     */
+    private static final float HOTEL_ESTIMATED_PRICE_INCREASE = 1.25f;
+
+    /**
      * The threshold for automatic purchases of flight tickets. Any ticket
      * matching a client's preference with a price below the threshold is bought
      * until the allocation is filled.
@@ -363,13 +369,29 @@ public class Agent007 extends AgentImpl {
      * any safe flights.
      */
     private void updateHotelPlan() {
-        HotelTree tree = new HotelTree(this.utilityCache, this.prices,
+        Prices estFuturePrices = estimateFutureHotelPrices();
+        HotelTree tree = new HotelTree(this.utilityCache, estFuturePrices,
                 this.owned);
         HotelTree.Result result = tree.search(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
 
         placeHotelBids(result.getSuggestedActions());
         buySafeFlights(result.getTargetOwns());
+    }
+
+    /**
+     * Gets an estimation of future hotel room prices based on the current
+     * prices and the configurable factor of estimated price increase.
+     *
+     * @return The estimated future hotel room prices.
+     */
+    private Prices estimateFutureHotelPrices() {
+        Prices estFuturePrices = new Prices(this.prices);
+        for (Item room : Item.ROOMS) {
+            estFuturePrices.set(room,
+                    (int) (estFuturePrices.get(room) * HOTEL_ESTIMATED_PRICE_INCREASE));
+        }
+        return estFuturePrices;
     }
 
     /**

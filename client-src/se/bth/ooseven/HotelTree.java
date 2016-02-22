@@ -31,7 +31,7 @@ public class HotelTree {
     private final Cache cache;
 
     /**
-     * The current prices, to consider when calculating the branches' utilities.
+     * The prices to consider when calculating the branches' utilities.
      */
     private final Prices prices;
 
@@ -118,14 +118,20 @@ public class HotelTree {
 
         /**
          * The value of this node, considering utility gain and cost.
-         * value = utility - parent's utility - cost
-         * where cost = (price + 1) as any bid must be at least $1 higher.
+         * value = utility - parent's utility - price
          */
         private final int value;
 
         /**
          * The maximum price to pay for this node without losing money.
-         * max price = utility - parent's utility
+         *
+         * The special case of negative value is handled by never assigning a max
+         * value below what is allowed for bids (i.e. ask price + 1). This case
+         * is unintuitive but important, as a room that has negative value might
+         * still be useful in combination with other rooms. However, properly
+         * assigning such rooms a representative value seems non-trivial.
+         *
+         * max price = price + max(value, 1)
          */
         private final int maxPrice;
 
@@ -185,9 +191,11 @@ public class HotelTree {
             this.owns.add(this.room, 1);
 
             this.utility = HotelTree.this.cache.calc(this.owns);
-            this.maxPrice = this.utility - parent.utility;
-            this.value = this.utility - parent.utility -
-                    (HotelTree.this.prices.get(this.room) + 1); // Must beat current price by at least $1.;
+
+            int price = HotelTree.this.prices.get(this.room);
+            this.value = this.utility - parent.utility - price;
+            this.maxPrice = price + Math.max(this.value, 1);
+
             this.childValueAverage = 0;
             this.childValueVariance = 0;
             this.estimatedTotalValue = this.value;
