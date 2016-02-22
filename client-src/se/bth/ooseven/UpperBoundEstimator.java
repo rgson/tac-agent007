@@ -12,6 +12,7 @@ import java.util.*;
 
 class UpperBoundEstimator {
     private final Set<Curve> curves;
+    private Integer lastPoint = null;
 
     /**
      *  Sets up the set of all possible curves that are possible in the game.
@@ -20,6 +21,19 @@ class UpperBoundEstimator {
         this.curves = IntStream.range(-10, 30 + 1)
                         .mapToObj(i -> new Curve(i))
                         .collect(Collectors.toSet());
+    }
+    
+    /**
+     *  Adds a absolute point, keeping track of the relative price changes
+     *  internaly.
+     */        
+    public void addAbsPoint(int price, long timeInGame, int gameLength) {
+        if(lastPoint == null) {
+            lastPoint = price;
+        } else {
+            addPoint(price - lastPoint, timeInGame, gameLength);
+            lastPoint = price;
+        }
     }
     
     /**

@@ -95,6 +95,16 @@ public class Agent007 extends AgentImpl {
      * Flag to signal the first update of flight quotes.
      */
     private boolean firstFlightQuoteUpdate;
+    
+    /**
+     *  Length of the Game for the price prediction.
+     */ 
+    private static final int GAME_LENGTH = 9*60*1000; // 9 Minutes
+    
+    /**
+     *  Price estimators for flightprices.
+     */
+    private final HashMap<Item,UpperBoundEstimator> priceEstimators = new HashMap<>();
 
     /**
      * Main method for backwards compatibility.
@@ -207,10 +217,15 @@ public class Agent007 extends AgentImpl {
      * @param quote The updated quote.
      */
     private void flightQuoteUpdated(Quote quote) {
-//        int auction = quote.getAuction();
-//        Item flight = Item.getItemByAuctionNumber(auction);
-//        int price = (int) Math.ceil(quote.getAskPrice());
-        // TODO probably do something with price prediction here?
+        int auction = quote.getAuction();
+        Item flight = Item.getItemByAuctionNumber(auction);
+        int price = (int) Math.ceil(quote.getAskPrice());
+        
+        if(!priceEstimators.containsKey(flight)) {
+            priceEstimators.put(flight, new UpperBoundEstimator());
+        }
+        
+        priceEstimators.get(flight).addAbsPoint(price, quote.getLastQuoteTime(), GAME_LENGTH);
     }
 
     /**
@@ -390,6 +405,13 @@ public class Agent007 extends AgentImpl {
         // Buy the safe tickets.
         for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
             Item flight = entry.getKey();
+            
+            // Check if price is going down
+            UpperBoundEstimator estimator = priceEstimators.get(flight);
+            if(estimator.estimateChange(agent.getGameTime()+(10*1000), GAME_LENGTH) <= 0) {
+                continue;
+            }
+            
             int quantity = entry.getValue() - this.owned.get(flight);
             if (quantity > 0) {
                 // $500 buffer on the price, in case quotes are updated before the bid is registered.
