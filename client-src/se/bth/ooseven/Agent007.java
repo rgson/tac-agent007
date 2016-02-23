@@ -127,8 +127,8 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void quoteUpdated(Quote quote) {
-        System.out.printf("Quote updated: %d\n  AskPrice: $%f\n",
-                quote.getAuction(), quote.getAskPrice());
+        //System.out.printf("Quote updated: %d\n  AskPrice: $%f\n",
+        //        quote.getAuction(), quote.getAskPrice());
 
         updatePrice(quote);
 
@@ -140,8 +140,8 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void quoteUpdated(int auctionCategory) {
-        System.out.printf("All quotes updated for %s\n",
-                agent.auctionCategoryToString(auctionCategory));
+        //System.out.printf("All quotes updated for %s\n",
+        //        agent.auctionCategoryToString(auctionCategory));
 
         switch (auctionCategory) {
             case TACAgent.CAT_HOTEL: allHotelQuotesUpdated(); break;
@@ -174,8 +174,8 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void bidRejected(Bid bid) {
-        System.out.printf("Bid rejected: %d. Reason: %s (%s)\n",
-                bid.getID(), bid.getRejectReason(), bid.getRejectReasonAsString());
+        System.out.printf("Bid rejected: %d. Auction %d. Reason: %s (%s)\n",
+                bid.getID(), bid.getAuction(), bid.getRejectReason(), bid.getRejectReasonAsString());
     }
 
     @Override

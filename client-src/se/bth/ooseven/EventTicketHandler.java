@@ -56,12 +56,12 @@ class EventTicketHandler {
     /**
      *  Current minimum price we would want to sell one of these tickets for.
      */
-    private Integer minSellPrice = 1337;
+    private Integer minSellPrice = 200;
     
     /**
      *  Current maximum price we would want to pay for this ticket.
      */
-    private Integer maxBuyPrice  = -1;
+    private Integer maxBuyPrice  = 0;
     
     
     /**
@@ -108,6 +108,7 @@ class EventTicketHandler {
         }
         
         bidManager = new Thread(new BidManager(), "BidManager."+handle);
+        bidManager.start();
     }
     
     public void stop() {
@@ -218,6 +219,14 @@ class EventTicketHandler {
             maxBuyPrice = Math.max(planBonuses.get(owns) * (1-POSSIBLE_BUY_WIN_MARGIN), maxBuyPrice);
         }
         
+        if(maxBuyPrice > minSellPrice) {
+            System.err.println("EventTicketHandler."+handle+": "+
+                "Want to sell for less than I want to buy, Buy: "+maxBuyPrice+", Sell: "+minSellPrice);
+                
+            minSellPrice = 240;
+            maxBuyPrice = 0;
+        }
+        
         // Set prices, making sure we stay within our absolute maximums
         this.maxBuyPrice  = Math.min(MAX_BUY_PRICE,  (int) Math.floor(maxBuyPrice));
         this.minSellPrice = Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice));
@@ -254,11 +263,16 @@ class EventTicketHandler {
                     // TODO Check other peoples prices (?)
                     
                     // place bids
-                    Bid bid = new Bid(handle.getAuctionNumber());
-                    bid.addBidPoint(1, englishValue);
-                    bid.addBidPoint(-1, dutchValue);
+                    try {
+                        Bid bid = new Bid(handle.getAuctionNumber());
+                        bid.addBidPoint(1, englishValue);
+                        bid.addBidPoint(-1, dutchValue);
+                        
+                        agent.submitBid(bid);
+                    } catch (Exception e) {
+                        System.err.println("Problem placing bid: "+e);
+                    }
                     
-                    agent.submitBid(bid);
                 } catch (InterruptedException ex) {
                     System.err.println("BidManager."+handle+" got interrupted!");
                 }
