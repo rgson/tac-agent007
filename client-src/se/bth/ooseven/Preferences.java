@@ -67,5 +67,17 @@ public class Preferences {
         }
         return null;
     }
+    
+    public int getEventBonus(int client, Item.Type type) {
+        int category = 3;
+        switch (type) {
+            case ALLIGATOR: category = 3; break;
+            case AMUSEMENT: category = 4; break;
+            case MUSEUM:    category = 5; break;
+            default: System.err.println("Dont know about Eventtype "+type+"!");
+        }
+    
+        return this.prefs[client][category];
+    }
 
 }

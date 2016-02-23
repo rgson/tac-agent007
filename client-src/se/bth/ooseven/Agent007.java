@@ -107,6 +107,11 @@ public class Agent007 extends AgentImpl {
     private final HashMap<Item,UpperBoundEstimator> priceEstimators = new HashMap<>();
 
     /**
+     *  Event ticket handlers, addressed by item.
+     */    
+    private final HashMap<Item,EventTicketHandler> eventTicketHandlers = new HashMap<>();
+
+    /**
      * Main method for backwards compatibility.
      *
      * @param args
@@ -129,6 +134,7 @@ public class Agent007 extends AgentImpl {
 
         switch (TACAgent.getAuctionCategory(quote.getAuction())) {
             case TACAgent.CAT_FLIGHT: flightQuoteUpdated(quote); break;
+            case TACAgent.CAT_ENTERTAINMENT: eventQuoteUpdated(quote); break;
         }
     }
 
@@ -162,8 +168,8 @@ public class Agent007 extends AgentImpl {
 
     @Override
     public void bidUpdated(Bid bid) {
-        System.out.printf("Bid updated: %d\n  Auction: %d\n  State: %s\n",
-                bid.getID(), bid.getAuction(), bid.getProcessingStateAsString());
+        //System.out.printf("Bid updated: %d\n  Auction: %d\n  State: %s\n",
+        //        bid.getID(), bid.getAuction(), bid.getProcessingStateAsString());
     }
 
     @Override
@@ -184,6 +190,12 @@ public class Agent007 extends AgentImpl {
                 transaction.getAuction(), transaction.getQuantity(), transaction.getPrice());
 
         updateOwns(transaction.getAuction());
+        
+        // Inform Event buying about the current allocation
+        Allocation current = new Allocation(this.owned.withAllFlights(), this.preferences);
+        for(EventTicketHandler eh : eventTicketHandlers.values()) {
+            eh.ownsUpdated(this.owned, current);
+        }
     }
 
     @Override
@@ -202,6 +214,14 @@ public class Agent007 extends AgentImpl {
         // However, that doesn't matter for hotel rooms as the first quotes are
         // always 0 anyway.
         updateHotelPlan();
+        
+        // Initialize EventTicketHandlers
+        Allocation current = new Allocation(this.owned.withAllFlights(), this.preferences);
+        for(Item item : Item.EVENTS) {
+            EventTicketHandler eh = new EventTicketHandler(agent, preferences, item);
+            eventTicketHandlers.put(item, eh);
+            eh.ownsUpdated(this.owned, current);
+        }
     }
 
     @Override
@@ -209,6 +229,9 @@ public class Agent007 extends AgentImpl {
         System.out.println("Game stopped.");
 
         this.utilityCache.stop();
+        for(EventTicketHandler eh : eventTicketHandlers.values()) {
+            eh.stop();
+        }
     }
 
     /**
@@ -226,6 +249,13 @@ public class Agent007 extends AgentImpl {
         }
         
         priceEstimators.get(flight).addAbsPoint(price, quote.getLastQuoteTime(), GAME_LENGTH);
+    }
+    
+    private void eventQuoteUpdated(Quote quote) {
+        int auction = quote.getAuction();
+        Item event = Item.getItemByAuctionNumber(auction);
+        
+        eventTicketHandlers.get(event).quoteUpdated(quote);
     }
 
     /**
@@ -370,6 +400,15 @@ public class Agent007 extends AgentImpl {
 
         placeHotelBids(result.getSuggestedActions());
         buySafeFlights(result.getTargetOwns());
+        updateEventTickets(result.getTargetOwns());
+    }
+    
+    private void updateEventTickets(Owns targetOwns) {
+        Allocation target  = new Allocation(targetOwns, this.preferences);
+        
+        for(EventTicketHandler eh : eventTicketHandlers.values()) {
+            eh.allocationUpdated(target);
+        }
     }
 
     /**

@@ -12,6 +12,9 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Semaphore;
 
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 
 public class Cache {
     //
@@ -167,6 +170,15 @@ public class Cache {
     private Entry run(Owns owns) {   
         int result;
         long time;
+        
+        // Change the log level of the FastOptimizer's Logger to avoid spam.
+        Logger log = Logger.getLogger(FastOptimizer.class.getName());
+        if (log != null) {
+            log.setLevel(Level.INFO);
+        } else {
+            System.err.println("Failed to find the FastOptimizer's Logger.");
+        }
+        
         FastOptimizer fo = new FastOptimizer();
         fo.setClientData(prefs.getSolverFormat(), owns.getSolverFormat());
         

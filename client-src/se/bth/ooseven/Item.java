@@ -95,6 +95,24 @@ public enum Item {
             OUTFLIGHT_1, OUTFLIGHT_2, OUTFLIGHT_3, OUTFLIGHT_4
     );
 
+    /**
+     * A set of all events.
+     */
+    public static final Set<Item> EVENTS = EnumSet.of(
+            ALLIGATOR_1, ALLIGATOR_2, ALLIGATOR_3, ALLIGATOR_4,
+            AMUSEMENT_1, AMUSEMENT_2, AMUSEMENT_3, AMUSEMENT_4,
+            MUSEUM_1, MUSEUM_2, MUSEUM_3, MUSEUM_4
+    );
+    
+    
+    /**
+     * A set of all event types.
+     */
+    public static final Set<Type> EVENT_TYPES = EnumSet.of(
+            Type.ALLIGATOR, Type.AMUSEMENT, Type.MUSEUM
+    );
+
+
     public static Item getItemByAuctionNumber(int auctionNumber) {
         return Item.values()[auctionNumber];
     }
