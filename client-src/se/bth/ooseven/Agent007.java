@@ -374,7 +374,7 @@ public class Agent007 extends AgentImpl {
                 this.owned);
         HotelTree.Result result = tree.search(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
-
+        
         placeHotelBids(result.getSuggestedActions());
         buySafeFlights(result.getTargetOwns());
     }
@@ -388,8 +388,9 @@ public class Agent007 extends AgentImpl {
     private Prices estimateFutureHotelPrices() {
         Prices estFuturePrices = new Prices(this.prices);
         for (Item room : Item.ROOMS) {
-            estFuturePrices.set(room,
-                    (int) (estFuturePrices.get(room) * HOTEL_ESTIMATED_PRICE_INCREASE));
+            int price = Math.max(this.prices.get(room), 1); // Assume a cost of at least $1.
+            price = (int) (price * HOTEL_ESTIMATED_PRICE_INCREASE); // Estimate future price.
+            estFuturePrices.set(room, price);
         }
         return estFuturePrices;
     }
