@@ -51,6 +51,12 @@ public class Agent007 extends AgentImpl {
     private static final float HOTEL_ESTIMATED_PRICE_INCREASE = 1.25f;
 
     /**
+     * The auto-bid price to bid on all hotel rooms that are not otherwise
+     * bid on. Done on the off-chance that some rooms will be sold for free.
+     */
+    private static final int HOTEL_AUTOBID_AMOUNT = 2;
+
+    /**
      * The threshold for automatic purchases of flight tickets. Any ticket
      * matching a client's preference with a price below the threshold is bought
      * until the allocation is filled.
@@ -359,9 +365,121 @@ public class Agent007 extends AgentImpl {
                 this.owned);
         HotelTree.Result result = tree.search(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
-        
+
         placeHotelBids(result.getSuggestedActions());
+        updateHotelRoomAllocations(result.getTargetOwns());
         buySafeFlights(result.getTargetOwns());
+    }
+
+    /**
+     * Updates the hotel room allocations for all rooms to match the target
+     * state of owned items.
+     *
+     * @param targetOwns The bids to be posted.
+     */
+    private void updateHotelRoomAllocations(Owns targetOwns) {
+        for (Item room : Item.ROOMS) {
+            agent.setAllocation(room.getAuctionNumber(), targetOwns.get(room));
+        }
+    }
+
+    /**
+     * Places hotel bids according to the suggested actions.
+     *
+     * @param actions The suggested actions.
+     */
+    private void placeHotelBids(Queue<SuggestedAction> actions) {
+        Map<Item, List<BidPoint>> bids = convertSuggestionsToBids(actions);
+        addMinimumHotelBids(bids);
+        removeBidsBelowMinimumPrice(bids);
+        addRequiredNumberOfRooms(bids);
+
+        System.out.println("Placing hotel bids:");
+        for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
+            Item item = entry.getKey();
+            List<BidPoint> bidPoints = entry.getValue();
+            placeBid(item, bidPoints);
+        }
+    }
+
+    /**
+     * Adds minimum bids for all hotel rooms without more specific bids.
+     *
+     * @param bids The bids, soon to be submitted.
+     */
+    private void addMinimumHotelBids(Map<Item, List<BidPoint>> bids) {
+
+        // Can be skipped if the minimum bid is invalid(/disabled).
+        if (HOTEL_AUTOBID_AMOUNT <= 0) {
+            return;
+        }
+
+        for (Item room : Item.ROOMS) {
+
+            // Skip closed auctions and auctions above the fixed amount.
+            Quote quote = agent.getQuote(room.getAuctionNumber());
+            if (quote.isAuctionClosed() || quote.getAskPrice() >= HOTEL_AUTOBID_AMOUNT) {
+                continue;
+            }
+
+            List<BidPoint> bidPoints = bids.getOrDefault(room, null);
+            if (bidPoints == null) {
+                bidPoints = new LinkedList<>();
+                bids.put(room, bidPoints);
+            }
+            int quantity = bidPoints.stream()
+                    .mapToInt(bidPoint -> bidPoint.quantity)
+                    .sum();
+            if (quantity < 16) {
+                // Add a bid point for all remaining rooms.
+                bidPoints.add(new BidPoint(16 - quantity, HOTEL_AUTOBID_AMOUNT));
+            }
+        }
+    }
+
+    /**
+     * Filters out any bid points below the current minimum bid (ask price + 1).
+     *
+     * @param bids The bids (item => bid points).
+     */
+    private void removeBidsBelowMinimumPrice(Map<Item, List<BidPoint>> bids) {
+        for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
+            Item item = entry.getKey();
+            List<BidPoint> bidPoints = entry.getValue();
+
+            float minPrice = 1 + agent.getQuote(item.getAuctionNumber()).getAskPrice();
+            bidPoints = bidPoints.stream()
+                    .filter(bidPoint -> bidPoint.price >= minPrice)
+                    .collect(Collectors.toList());
+            entry.setValue(bidPoints);
+        }
+    }
+
+    /**
+     * Adds the required number of rooms to make the bid valid.
+     *
+     * From the game rules:
+     *  "If the agent's current bid b' would have resulted in a purchase
+     *  of q units in the current state, then the new bid b must offer to
+     *  buy at least q units at ASK+1 or greater."
+     *
+     * @param bids
+     */
+    private void addRequiredNumberOfRooms(Map<Item, List<BidPoint>> bids) {
+        for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
+            Item item = entry.getKey();
+            List<BidPoint> bidPoints = entry.getValue();
+
+            Quote quote = agent.getQuote(item.getAuctionNumber());
+            int newBidQuantity = bidPoints.stream()
+                    .mapToInt(bidPoint -> bidPoint.quantity)
+                    .sum();
+            int missing = quote.getHQW() - newBidQuantity;
+            if (missing > 0) {
+                int minPrice = (int) (1 + Math.ceil(quote.getAskPrice()));
+                bidPoints.add(new BidPoint(missing, minPrice));
+            }
+        }
     }
 
     /**
@@ -455,26 +573,6 @@ public class Agent007 extends AgentImpl {
                 int price = this.prices.get(flight) + 500;
                 placeBid(flight, new BidPoint(quantity, price));
             }
-        }
-    }
-
-    /**
-     * Places hotel bids according to the suggested actions.
-     *
-     * @param actions The suggested actions.
-     */
-    private void placeHotelBids(Queue<SuggestedAction> actions) {
-        System.out.println("Placing hotel bids:");
-        Map<Item, List<BidPoint>> bids = convertSuggestionsToBids(actions);
-        for (Map.Entry<Item, List<BidPoint>> entry : bids.entrySet()) {
-            Item item = entry.getKey();
-            List<BidPoint> bidPoints = entry.getValue();
-            placeBid(item, bidPoints);
-            int totalBidQuantity = bidPoints.stream()
-                    .mapToInt(bidPoint -> bidPoint.quantity)
-                    .sum();
-            agent.setAllocation(item.getAuctionNumber(),
-                    this.owned.get(item) + totalBidQuantity);
         }
     }
 
