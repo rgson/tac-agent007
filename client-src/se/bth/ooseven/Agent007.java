@@ -68,11 +68,14 @@ public class Agent007 extends AgentImpl {
     // Agent implementation
     // =========================================================================
 
+    // Change the log level of the FastOptimizer's Logger to avoid spam.
+    // A reference is kept to avoid garbage collection of the logger (as garbage
+    // collection of the logger would reset the log level).
+    private static Logger fastOptimizerLogger;
     static {
-        // Change the log level of the FastOptimizer's Logger to avoid spam.
-        Logger log = Logger.getLogger(FastOptimizer.class.getName());
-        if (log != null) {
-            log.setLevel(Level.INFO);
+        fastOptimizerLogger = Logger.getLogger(FastOptimizer.class.getName());
+        if (fastOptimizerLogger != null) {
+            fastOptimizerLogger.setLevel(Level.INFO);
         } else {
             System.err.println("Failed to find the FastOptimizer's Logger.");
         }
