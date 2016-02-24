@@ -54,7 +54,14 @@ public class Agent007 extends AgentImpl {
      * The auto-bid price to bid on all hotel rooms that are not otherwise
      * bid on. Done on the off-chance that some rooms will be sold for free.
      */
-    private static final int HOTEL_AUTOBID_AMOUNT = 2;
+    private static final int HOTEL_AUTOBID_PRICE = 2;
+
+    /**
+     * The number of hotel rooms to fill with auto-bid. If the number of desired
+     * hotel rooms is below this number, the rest will be bought using auto-bid,
+     * if they are cheap enough.
+     */
+    private static final int HOTEL_AUTOBID_COUNT = 8;
 
     /**
      * The threshold for automatic purchases of flight tickets. Any ticket
@@ -428,7 +435,7 @@ public class Agent007 extends AgentImpl {
     private void addMinimumHotelBids(Map<Item, List<BidPoint>> bids) {
 
         // Can be skipped if the minimum bid is invalid(/disabled).
-        if (HOTEL_AUTOBID_AMOUNT <= 0) {
+        if (HOTEL_AUTOBID_PRICE <= 0) {
             return;
         }
 
@@ -436,7 +443,7 @@ public class Agent007 extends AgentImpl {
 
             // Skip closed auctions and auctions above the fixed amount.
             Quote quote = agent.getQuote(room.getAuctionNumber());
-            if (quote.isAuctionClosed() || quote.getAskPrice() >= HOTEL_AUTOBID_AMOUNT) {
+            if (quote.isAuctionClosed() || quote.getAskPrice() >= HOTEL_AUTOBID_PRICE) {
                 continue;
             }
 
@@ -448,9 +455,9 @@ public class Agent007 extends AgentImpl {
             int quantity = bidPoints.stream()
                     .mapToInt(bidPoint -> bidPoint.quantity)
                     .sum();
-            if (quantity < 16) {
+            if (quantity < HOTEL_AUTOBID_COUNT) {
                 // Add a bid point for all remaining rooms.
-                bidPoints.add(new BidPoint(16 - quantity, HOTEL_AUTOBID_AMOUNT));
+                bidPoints.add(new BidPoint(HOTEL_AUTOBID_COUNT - quantity, HOTEL_AUTOBID_PRICE));
             }
         }
     }
