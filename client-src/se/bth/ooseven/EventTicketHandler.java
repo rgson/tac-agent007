@@ -58,12 +58,12 @@ class EventTicketHandler {
     /**
      *  Current minimum price we would want to sell one of these tickets for.
      */
-    private Integer minSellPrice = 200;
+    public Integer minSellPrice = 200;
     
     /**
      *  Current maximum price we would want to pay for this ticket.
      */
-    private Integer maxBuyPrice  = 0;
+    public Integer maxBuyPrice  = 0;
     
     
     /**
@@ -74,7 +74,7 @@ class EventTicketHandler {
     /**
      *  Item this Handler should handle.
      */
-    private final Item handle;
+    public final Item handle;
     
     /**
      *  Background Thread for managing the auctions.
@@ -166,6 +166,8 @@ class EventTicketHandler {
                 continue;
             }
             
+            boolean feasable = true;
+            
             // Does this client have an event this day 
             // and is that more valueble than this? -> skip
             for(Item.Type type : Item.EVENT_TYPES) {
@@ -173,9 +175,11 @@ class EventTicketHandler {
                     && currentAlloc.getEventDay(i, type) == handle.day
                     // && prefs.getEventBonus(i, type) >= (clientBonus[i]*(1-REPLACE_MARGIN))
                   ) {
-                    continue;
+                    feasable = false;
                 }
             }
+            
+            if(!feasable) continue;
             
             // This is at-least a planned client
             planBonuses.add(clientBonus[i]);
@@ -233,17 +237,6 @@ class EventTicketHandler {
         // Set prices, making sure we stay within our absolute maximums
         this.maxBuyPrice  = Math.min(MAX_BUY_PRICE,  (int) Math.floor(maxBuyPrice));
         this.minSellPrice = Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice));
-        
-        // place bids
-        try {
-            Bid bid = new Bid(handle.getAuctionNumber());
-            bid.addBidPoint(1, this.maxBuyPrice);
-            bid.addBidPoint(-1, this.minSellPrice);
-            
-            agent.submitBid(bid);
-        } catch (Exception e) {
-            System.err.println("Problem placing bid: "+e);
-        }
     }
     
     private class BidManager implements Runnable {
