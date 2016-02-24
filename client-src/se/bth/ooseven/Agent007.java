@@ -119,14 +119,9 @@ public class Agent007 extends AgentImpl {
     private boolean firstFlightQuoteUpdate;
     
     /**
-     *  Length of the Game for the price prediction.
-     */ 
-    private static final int GAME_LENGTH = 9*60*1000; // 9 Minutes
-    
-    /**
      *  Price estimators for flightprices.
      */
-    private final HashMap<Item,UpperBoundEstimator> priceEstimators = new HashMap<>();
+    private HashMap<Item,UpperBoundEstimator> priceEstimators;
 
     /**
      * Main method for backwards compatibility.
@@ -219,6 +214,7 @@ public class Agent007 extends AgentImpl {
         this.utilityCache = new Cache(this.preferences);
         this.remainingHotelAuctions = 8;
         this.firstFlightQuoteUpdate = true;
+        this.priceEstimators = new HashMap<>();
 
         // NOTE: The price quotes haven't been updated yet at this point.
         // However, that doesn't matter for hotel rooms as the first quotes are
@@ -247,7 +243,7 @@ public class Agent007 extends AgentImpl {
             priceEstimators.put(flight, new UpperBoundEstimator());
         }
         
-        priceEstimators.get(flight).addAbsPoint(price, quote.getLastQuoteTime(), GAME_LENGTH);
+        priceEstimators.get(flight).addAbsPoint(price, quote.getLastQuoteTime(), agent.getGameLength());
     }
 
     /**
