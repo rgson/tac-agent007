@@ -46,7 +46,7 @@ public class Agent007 extends AgentImpl {
      * amount possible before losing score by purchasing. A higher value lowers
      * the expected profit margin.
      */
-    private static final float HOTEL_BID_FACTOR = 0.8f;
+    private static final float HOTEL_BID_FACTOR = 0.6f;
 
     /**
      * The factor of estimated price increase in hotel rooms.
@@ -58,7 +58,7 @@ public class Agent007 extends AgentImpl {
      * The auto-bid price to bid on all hotel rooms that are not otherwise
      * bid on. Done on the off-chance that some rooms will be sold for free.
      */
-    private static final int HOTEL_AUTOBID_PRICE = 2;
+    private static final int HOTEL_AUTOBID_PRICE = 1;
 
     /**
      * The number of hotel rooms to fill with auto-bid. If the number of desired
@@ -126,7 +126,7 @@ public class Agent007 extends AgentImpl {
      * Flag to signal the first update of flight quotes.
      */
     private boolean firstFlightQuoteUpdate;
-    
+
     /**
      *  Price estimators for flightprices.
      */
@@ -134,7 +134,7 @@ public class Agent007 extends AgentImpl {
 
     /**
      *  Event ticket handlers, addressed by item.
-     */    
+     */
     private HashMap<Item,EventTicketHandler> eventTicketHandlers;
 
     /**
@@ -302,11 +302,11 @@ public class Agent007 extends AgentImpl {
         int auction = quote.getAuction();
         Item flight = Item.getItemByAuctionNumber(auction);
         int price = (int) Math.ceil(quote.getAskPrice());
-        
+
         if(!priceEstimators.containsKey(flight)) {
             priceEstimators.put(flight, new UpperBoundEstimator());
         }
-        
+
         priceEstimators.get(flight).addAbsPoint(price, quote.getLastQuoteTime(), agent.getGameLength());
     }
 
@@ -631,13 +631,13 @@ public class Agent007 extends AgentImpl {
         // Buy the safe tickets.
         for (Map.Entry<Item, Integer> entry : counts.entrySet()) {
             Item flight = entry.getKey();
-            
+
             // Check if price is going down
             UpperBoundEstimator estimator = priceEstimators.get(flight);
             if(estimator.estimateChange(agent.getGameTime()+(10*1000), agent.getGameLength()) <= 0 && agent.getGameTimeLeft() > 30*1000) {
                 continue;
             }
-            
+
             int quantity = entry.getValue() - this.owned.get(flight);
             if (quantity > 0) {
                 // $500 buffer on the price, in case quotes are updated before the bid is registered.
