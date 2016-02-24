@@ -34,7 +34,7 @@ class EventTicketHandler {
      *  If we probably want to buy this ticket, but don't know yet if we will
      *  need it in the end. Buy only if we make this relative amount in win.
      */
-    private static final double POSSIBLE_BUY_WIN_MARGIN = 0.99; // %
+    private static final double POSSIBLE_BUY_WIN_MARGIN = 0.9; // %
     
     private static final double REPLACE_MARGIN = 0.9; // %
     
@@ -221,9 +221,9 @@ class EventTicketHandler {
         }
         
         // Check if our plan has a higher maxBuyPrice
-        //if (owns >= 0 && owns < planBonuses.size()) {
-        //    maxBuyPrice = Math.max(planBonuses.get(owns) * (1-POSSIBLE_BUY_WIN_MARGIN), maxBuyPrice);
-        //}
+        if (owns >= 0 && owns < planBonuses.size()) {
+            maxBuyPrice = Math.max(planBonuses.get(owns) * (1-POSSIBLE_BUY_WIN_MARGIN), maxBuyPrice);
+        }
         
         if(Math.min(MAX_BUY_PRICE,  (int) Math.floor(maxBuyPrice)) >= Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice))) {
             System.err.println("EventTicketHandler."+handle+": "+
