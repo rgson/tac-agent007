@@ -110,7 +110,7 @@ class EventTicketHandler {
         }
         
         bidManager = new Thread(new BidManager(), "BidManager."+handle);
-        bidManager.start();
+        //bidManager.start();
     }
     
     public void stop() {
@@ -144,7 +144,7 @@ class EventTicketHandler {
         }
         
         this.quote = quote;    
-        runManager.release();
+        //runManager.release();
     }
     
     private void updatePrices() {
@@ -233,6 +233,17 @@ class EventTicketHandler {
         // Set prices, making sure we stay within our absolute maximums
         this.maxBuyPrice  = Math.min(MAX_BUY_PRICE,  (int) Math.floor(maxBuyPrice));
         this.minSellPrice = Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice));
+        
+        // place bids
+        try {
+            Bid bid = new Bid(handle.getAuctionNumber());
+            bid.addBidPoint(1, this.maxBuyPrice);
+            bid.addBidPoint(-1, this.minSellPrice);
+            
+            agent.submitBid(bid);
+        } catch (Exception e) {
+            System.err.println("Problem placing bid: "+e);
+        }
     }
     
     private class BidManager implements Runnable {
@@ -250,16 +261,7 @@ class EventTicketHandler {
                     Thread.sleep(1);
                     
                     
-                    // place bids
-                    try {
-                        Bid bid = new Bid(handle.getAuctionNumber());
-                        bid.addBidPoint(1, maxBuyPrice);
-                        bid.addBidPoint(-1, minSellPrice);
-                        
-                        agent.submitBid(bid);
-                    } catch (Exception e) {
-                        System.err.println("Problem placing bid: "+e);
-                    }
+
                     
                 } catch (InterruptedException ex) {
                     System.err.println("BidManager."+handle+" got interrupted!");
