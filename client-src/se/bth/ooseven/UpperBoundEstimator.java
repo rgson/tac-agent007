@@ -13,6 +13,7 @@ import java.util.*;
 class UpperBoundEstimator {
     private final Set<Curve> curves;
     private Integer lastPoint = null;
+    private int datapoints = 0;
 
     /**
      *  Sets up the set of all possible curves that are possible in the game.
@@ -43,6 +44,7 @@ class UpperBoundEstimator {
      */
     public void addPoint(int delta, long timeInGame, int gameLength) {
         curves.stream().forEach(c -> c.addPoint(delta, timeInGame, gameLength));
+        datapoints++;
     }
     
     /**
@@ -50,27 +52,31 @@ class UpperBoundEstimator {
      *  possible range and have an error of less than the average error.
      */
     public Stream<Curve> getPossibleCurves() {
-        double avgError = getAvgError();
+        //double avgError = getAvgError();
         return curves.stream()
-                .filter(c -> c.possible)
-                .filter(c -> c.totalError <= avgError);
+                .filter(c -> c.possible);
+                //.filter(c -> c.totalError <= avgError);
     }
     
     /**
      *  Returns the average error of all the possible curves.
      */
-    public double getAvgError() {
+    /*public double getAvgError() {
         return curves.stream()
                 .filter(c -> c.possible)
                 .mapToDouble(c -> c.totalError)
                 .average()
                 .getAsDouble();
-    }
+    }*/
     
     /**
      *  Function for predicting a price change for a given Time and GameLength.
      */
     public int estimateChange(long timeInGame, int gameLength) {
+        if(datapoints == 0) {
+            System.err.println("Estimator: Was asked to estimate without having datapoints!");
+        }
+    
         double est = 0.0;
         
         List<Curve> possible = getPossibleCurves().collect(Collectors.toList());

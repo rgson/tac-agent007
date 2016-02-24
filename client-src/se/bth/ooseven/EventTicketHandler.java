@@ -11,7 +11,7 @@ class EventTicketHandler {
     /**
      *  Never sell a ticket for a price lower than this.
      */
-    private static final int MIN_SELL_PRICE = 0; // $
+    private static final int MIN_SELL_PRICE = 10; // $
     
     /**
      *  Never buy a ticket for more than this.
@@ -35,6 +35,8 @@ class EventTicketHandler {
      *  need it in the end. Buy only if we make this relative amount in win.
      */
     private static final double POSSIBLE_BUY_WIN_MARGIN = 0.5; // %
+    
+    private static final double REPLACE_MARGIN = 0.75; // %
     
     
     /**
@@ -169,7 +171,8 @@ class EventTicketHandler {
             for(Item.Type type : Item.EVENT_TYPES) {
                 if(handle.type != type
                     && currentAlloc.getEventDay(i, type) == handle.day
-                    && prefs.getEventBonus(i, type) > clientBonus[i]) {
+                    // && prefs.getEventBonus(i, type) >= (clientBonus[i]*(1-REPLACE_MARGIN))
+                  ) {
                     continue;
                 }
             }
@@ -197,10 +200,10 @@ class EventTicketHandler {
         double minSellPrice = 0;
         if(owns <= 0) {
             minSellPrice = 200 * (1+SELL_WIN_MARGIN); // 200$ Penalty
-        } else if (owns > secureBonuses.size()) {
+        } else if (owns > planBonuses.size()) {
             minSellPrice = 0; // We have some extra
         } else {
-            minSellPrice = secureBonuses.get(owns-1) * (1+SELL_WIN_MARGIN);
+            minSellPrice = planBonuses.get(owns-1) * (1+SELL_WIN_MARGIN);
         }
         
         // Determine maximum buy price, which is the highest gain we get from
@@ -215,13 +218,13 @@ class EventTicketHandler {
         }
         
         // Check if our plan has a higher maxBuyPrice
-        if (owns >= 0 && owns < planBonuses.size()) {
-            maxBuyPrice = Math.max(planBonuses.get(owns) * (1-POSSIBLE_BUY_WIN_MARGIN), maxBuyPrice);
-        }
+        //if (owns >= 0 && owns < planBonuses.size()) {
+        //    maxBuyPrice = Math.max(planBonuses.get(owns) * (1-POSSIBLE_BUY_WIN_MARGIN), maxBuyPrice);
+        //}
         
-        if(maxBuyPrice > minSellPrice) {
+        if(Math.min(MAX_BUY_PRICE,  (int) Math.floor(maxBuyPrice)) >= Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice))) {
             System.err.println("EventTicketHandler."+handle+": "+
-                "Want to sell for less than I want to buy, Buy: "+maxBuyPrice+", Sell: "+minSellPrice);
+                "Want to sell for less than I want to buy, Buy: "+maxBuyPrice+", Sell: "+minSellPrice+", Bonuses:"+secureBonuses+planBonuses);
                 
             minSellPrice = 240;
             maxBuyPrice = 0;
@@ -237,36 +240,21 @@ class EventTicketHandler {
             boolean called = false;
             
             long lastDutchUpdate = 0;
+            
+            int askPrice = 240;
+            int bidPrice = 0;
+            
             while(run) {
                 try {
-                    called = runManager.tryAcquire(1, TimeUnit.SECONDS);
-
-                    // run dutch auction for selling (one at a time)
-                    if(!called) {
-                        // Go slowely down till the end of the game
-                        dutchValue -= (minSellPrice - dutchValue) / ((agent.getGameTimeLeft()/1000) + 1);
-                        lastDutchUpdate = agent.getGameTime();
-                    }
+                    called = runManager.tryAcquire(30, TimeUnit.SECONDS);
+                    Thread.sleep(1);
                     
-                    if(dutchValue < minSellPrice) {
-                        dutchValue = minSellPrice;
-                    }
-                    
-                    // TODO remove...
-                    dutchValue = minSellPrice;
-                    
-                    
-                    // TODO run english auction for buying (one at a time)
-                    englishValue = maxBuyPrice;
-                    
-                    
-                    // TODO Check other peoples prices (?)
                     
                     // place bids
                     try {
                         Bid bid = new Bid(handle.getAuctionNumber());
-                        bid.addBidPoint(1, englishValue);
-                        bid.addBidPoint(-1, dutchValue);
+                        bid.addBidPoint(1, maxBuyPrice);
+                        bid.addBidPoint(-1, minSellPrice);
                         
                         agent.submitBid(bid);
                     } catch (Exception e) {

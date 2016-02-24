@@ -166,6 +166,15 @@ public class Owns {
         return Arrays.deepEquals(ownedItems, owns.ownedItems);
 
     }
+    
+    public Owns withEventsOf(Owns other) {
+        Owns copy = new Owns(this);
+        for(Item item : Item.EVENTS) {
+            copy.set(item, other.get(item));
+        }
+        
+        return copy;
+    }
 
     @Override
     public int hashCode() {

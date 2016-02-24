@@ -69,7 +69,7 @@ public class Cache {
      * @param prefs     The preferences of the clients
      */
     public Cache(Preferences prefs) {
-        this(prefs, 1024*1024); // 1 Mega Entries
+        this(prefs, 10*1024*1024); // 1 Mega Entries
     }
     
     /**
@@ -203,11 +203,12 @@ public class Cache {
         long start_wait = System.nanoTime();
         try {
             // Send item to Cache-Manager
+            // TODO add timeout
             buffer.put(e.base, e);
-            todo.put(e);
-        } catch (InterruptedException ex) {
+            todo.add(e);
+        } catch (IllegalStateException ex) {
             // If something goes wrong here, we just drop the entry
-            System.err.println("Cache: Got interrupted while waiting to put something in the cache!");
+            System.err.println("Cache: no room in the Buffer!");
             
             // Clean up
             todo.remove(e);

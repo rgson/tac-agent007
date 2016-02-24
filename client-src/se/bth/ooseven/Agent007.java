@@ -397,6 +397,7 @@ public class Agent007 extends AgentImpl {
                 this.owned);
         HotelTree.Result result = tree.search(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
+        this.utilityCache.removeOld();
 
         placeHotelBids(result.getSuggestedActions());
         buySafeFlights(result.getTargetOwns());
@@ -404,7 +405,9 @@ public class Agent007 extends AgentImpl {
     }
     
     private void updateEventTickets(Owns targetOwns) {
-        Allocation target  = new Allocation(targetOwns, this.preferences);
+        // TODO add currently owned tickets to target
+        
+        Allocation target  = new Allocation(targetOwns.withEventsOf(owned).withAllFlights(), this.preferences);
         
         for(EventTicketHandler eh : eventTicketHandlers.values()) {
             eh.allocationUpdated(target);
@@ -447,7 +450,7 @@ public class Agent007 extends AgentImpl {
             
             // Check if price is going down
             UpperBoundEstimator estimator = priceEstimators.get(flight);
-            if(estimator.estimateChange(agent.getGameTime()+(10*1000), GAME_LENGTH) <= 0) {
+            if(estimator.estimateChange(agent.getGameTime()+(10*1000), GAME_LENGTH) <= 0 && agent.getGameTimeLeft() > 30*1000) {
                 continue;
             }
             
