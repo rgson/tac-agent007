@@ -6,6 +6,10 @@ import se.sics.tac.util.ArgEnumerator;
 
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -70,6 +74,11 @@ public class Agent007 extends AgentImpl {
      */
     private static final int FLIGHT_AUTOBUY_THRESHOLD = 200;
 
+    /**
+     * The interval by which the entertainment bids are updated and submitted.
+     */
+    private static final Duration ENTERTAINMENT_BIDDING_INTERVAL = Duration.ofSeconds(20);
+
 
     // =========================================================================
     // Agent implementation
@@ -126,7 +135,13 @@ public class Agent007 extends AgentImpl {
     /**
      *  Event ticket handlers, addressed by item.
      */    
-    private final HashMap<Item,EventTicketHandler> eventTicketHandlers = new HashMap<>();
+    private HashMap<Item,EventTicketHandler> eventTicketHandlers;
+
+    /**
+     * The scheduled future used for the entertainment bidding cycle.
+     */
+    private ScheduledFuture<?> entertainmentBidder;
+
 
     /**
      * Main method for backwards compatibility.
@@ -151,7 +166,6 @@ public class Agent007 extends AgentImpl {
 
         switch (TACAgent.getAuctionCategory(quote.getAuction())) {
             case TACAgent.CAT_FLIGHT: flightQuoteUpdated(quote); break;
-            case TACAgent.CAT_ENTERTAINMENT: eventQuoteUpdated(quote); break;
         }
     }
 
@@ -207,8 +221,6 @@ public class Agent007 extends AgentImpl {
                 transaction.getAuction(), transaction.getQuantity(), transaction.getPrice());
 
         updateOwns(transaction.getAuction());
-        
-        new Thread(() -> updateEventTickets(owned, false)).start();
     }
 
     @Override
@@ -223,19 +235,15 @@ public class Agent007 extends AgentImpl {
         this.remainingHotelAuctions = 8;
         this.firstFlightQuoteUpdate = true;
         this.priceEstimators = new HashMap<>();
+        this.eventTicketHandlers = new HashMap<>();
 
         // NOTE: The price quotes haven't been updated yet at this point.
         // However, that doesn't matter for hotel rooms as the first quotes are
         // always 0 anyway.
         updateHotelPlan();
-        
-        // Initialize EventTicketHandlers
-        Allocation current = new Allocation(this.owned.withAllFlights(), this.preferences);
-        for(Item item : Item.EVENTS) {
-            EventTicketHandler eh = new EventTicketHandler(agent, preferences, item);
-            eventTicketHandlers.put(item, eh);
-            eh.ownsUpdated(this.owned, current);
-        }
+
+        initializeEntertainmentBidding();
+
     }
 
     @Override
@@ -245,6 +253,43 @@ public class Agent007 extends AgentImpl {
         this.utilityCache.stop();
         for(EventTicketHandler eh : eventTicketHandlers.values()) {
             eh.stop();
+        }
+        this.entertainmentBidder.cancel(true);
+    }
+
+    /**
+     * Initializes the entertainment bidding process.
+     */
+    private void initializeEntertainmentBidding() {
+        // Initialize EventTicketHandlers
+        for (Item item : Item.EVENTS) {
+            EventTicketHandler eh = new EventTicketHandler(agent, preferences, item);
+            eventTicketHandlers.put(item, eh);
+        }
+
+        // Start the entertainment bid cycle.
+        ScheduledExecutorService executor = Executors.newScheduledThreadPool(1);
+        entertainmentBidder = executor.scheduleWithFixedDelay(
+                () -> updateEntertainmentBids(), 0,
+                ENTERTAINMENT_BIDDING_INTERVAL.getSeconds(), TimeUnit.SECONDS);
+    }
+
+    /**
+     * Calculates and submits entertainment ticket bids based on the currently
+     * owned items.
+     */
+    private void updateEntertainmentBids() {
+        Allocation target  = new Allocation(this.owned.withAllFlights(), this.preferences);
+        for(EventTicketHandler eh : eventTicketHandlers.values()) {
+            eh.ownsUpdated(this.owned, target);
+            try {
+                List<BidPoint> points = new ArrayList<>(2);
+                points.add(new BidPoint(1, eh.maxBuyPrice));
+                points.add(new BidPoint(-1, eh.minSellPrice));
+                placeBid(eh.handle, points);
+            } catch (Exception e) {
+                System.err.println("Problem placing bid: "+e);
+            }
         }
     }
 
@@ -263,13 +308,6 @@ public class Agent007 extends AgentImpl {
         }
         
         priceEstimators.get(flight).addAbsPoint(price, quote.getLastQuoteTime(), agent.getGameLength());
-    }
-    
-    private void eventQuoteUpdated(Quote quote) {
-        int auction = quote.getAuction();
-        Item event = Item.getItemByAuctionNumber(auction);
-        
-        //eventTicketHandlers.get(event).quoteUpdated(quote);
     }
 
     /**
@@ -418,51 +456,18 @@ public class Agent007 extends AgentImpl {
         placeHotelBids(result.getSuggestedActions());
         updateHotelRoomAllocations(result.getTargetOwns());
         buySafeFlights(result.getTargetOwns());
-        
-        new Thread(() -> updateEventTickets(result.getTargetOwns(), true)).start();
+        updateEventTicketHandlerAllocations(result.getTargetOwns());
     }
-    
-    private void updateEventTickets(Owns owns, boolean isPlan) {
-        long start = System.nanoTime();
-        
-        Allocation target;
-        
-        if(isPlan) {
-            target  = new Allocation(owns.withEventsOf(owned).withAllFlights(), this.preferences);
-        } else {
-            target  = new Allocation(owns.withAllFlights(), this.preferences);
-        }
-        
-        for(EventTicketHandler eh : eventTicketHandlers.values()) {
-            boolean changed;
-            
-            if(isPlan) {
-                changed = eh.allocationUpdated(target);
-            } else {
-                changed = eh.ownsUpdated(owns, target);
-            }
-            
-            if(changed) {
-                // place bids
-                try {
-                    List<BidPoint> points = new ArrayList<>(2);
-                    
-                    points.add(new BidPoint(1, eh.maxBuyPrice));
-                    points.add(new BidPoint(-1, eh.minSellPrice));
-                    
-                    
-                    placeBid(eh.handle, points);
 
-                } catch (Exception e) {
-                    System.err.println("Problem placing bid: "+e);
-                }
-            }
-        }
-        
-        long spend = System.nanoTime() - start;
-        
-        if(spend >= 1000000) {
-            System.err.println("Updating ETickets took: "+spend/1000000+" ms!");
+    /**
+     * Updates the target allocation of the event ticket handlers.
+     *
+     * @param targetOwns The target state of owned items.
+     */
+    private void updateEventTicketHandlerAllocations(Owns targetOwns) {
+        Allocation target = new Allocation(targetOwns.withEventsOf(owned).withAllFlights(), this.preferences);
+        for(EventTicketHandler eh : eventTicketHandlers.values()) {
+            eh.allocationUpdated(target);
         }
     }
 
@@ -629,7 +634,7 @@ public class Agent007 extends AgentImpl {
             
             // Check if price is going down
             UpperBoundEstimator estimator = priceEstimators.get(flight);
-            if(estimator.estimateChange(agent.getGameTime()+(10*1000), GAME_LENGTH) <= 0 && agent.getGameTimeLeft() > 30*1000) {
+            if(estimator.estimateChange(agent.getGameTime()+(10*1000), agent.getGameLength()) <= 0 && agent.getGameTimeLeft() > 30*1000) {
                 continue;
             }
             
