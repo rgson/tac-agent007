@@ -206,11 +206,7 @@ public class Agent007 extends AgentImpl {
 
         updateOwns(transaction.getAuction());
         
-        // Inform Event buying about the current allocation
-        Allocation current = new Allocation(this.owned.withAllFlights(), this.preferences);
-        for(EventTicketHandler eh : eventTicketHandlers.values()) {
-            eh.ownsUpdated(this.owned, current);
-        }
+        new Thread(() -> updateEventTickets(owned, false)).start();
     }
 
     @Override
@@ -270,7 +266,7 @@ public class Agent007 extends AgentImpl {
         int auction = quote.getAuction();
         Item event = Item.getItemByAuctionNumber(auction);
         
-        eventTicketHandlers.get(event).quoteUpdated(quote);
+        //eventTicketHandlers.get(event).quoteUpdated(quote);
     }
 
     /**
@@ -392,7 +388,7 @@ public class Agent007 extends AgentImpl {
      * @param item      The item to bid on.
      * @param bidPoints The bid points to constitute the bid.
      */
-    private void placeBid(Item item, List<BidPoint> bidPoints) {
+    private synchronized void placeBid(Item item, List<BidPoint> bidPoints) {
         System.out.printf("Placing bids for item: %s\n", item);
         Bid bid = new Bid(item.getAuctionNumber());
         for (BidPoint bidPoint : bidPoints) {
@@ -414,32 +410,56 @@ public class Agent007 extends AgentImpl {
         HotelTree.Result result = tree.search(
                 HOTEL_VARIANCE_THRESHOLD, HOTEL_FIELD_OF_VISION, HOTEL_MAX_TIME);
         this.utilityCache.removeOld();
+        System.out.println(this.utilityCache.getStatistics());
 
         placeHotelBids(result.getSuggestedActions());
         updateHotelRoomAllocations(result.getTargetOwns());
         buySafeFlights(result.getTargetOwns());
-        updateEventTickets(result.getTargetOwns());
+        
+        new Thread(() -> updateEventTickets(result.getTargetOwns(), true)).start();
     }
     
-    private void updateEventTickets(Owns targetOwns) {
-        // TODO add currently owned tickets to target
+    private void updateEventTickets(Owns owns, boolean isPlan) {
+        long start = System.nanoTime();
         
-        Allocation target  = new Allocation(targetOwns.withEventsOf(owned).withAllFlights(), this.preferences);
+        Allocation target;
+        
+        if(isPlan) {
+            target  = new Allocation(owns.withEventsOf(owned).withAllFlights(), this.preferences);
+        } else {
+            target  = new Allocation(owns.withAllFlights(), this.preferences);
+        }
         
         for(EventTicketHandler eh : eventTicketHandlers.values()) {
-            eh.allocationUpdated(target);
+            boolean changed;
             
-            // place bids
-            try {
-                List<BidPoint> points = new ArrayList<>(2);
-                
-                points.add(new BidPoint(1, eh.maxBuyPrice));
-                points.add(new BidPoint(-1, eh.minSellPrice));
-                
-                placeBid(eh.handle, points);
-            } catch (Exception e) {
-                System.err.println("Problem placing bid: "+e);
+            if(isPlan) {
+                changed = eh.allocationUpdated(target);
+            } else {
+                changed = eh.ownsUpdated(owns, target);
             }
+            
+            if(changed) {
+                // place bids
+                try {
+                    List<BidPoint> points = new ArrayList<>(2);
+                    
+                    points.add(new BidPoint(1, eh.maxBuyPrice));
+                    points.add(new BidPoint(-1, eh.minSellPrice));
+                    
+                    
+                    placeBid(eh.handle, points);
+
+                } catch (Exception e) {
+                    System.err.println("Problem placing bid: "+e);
+                }
+            }
+        }
+        
+        long spend = System.nanoTime() - start;
+        
+        if(spend >= 1000000) {
+            System.err.println("Updating ETickets took: "+spend/1000000+" ms!");
         }
     }
 

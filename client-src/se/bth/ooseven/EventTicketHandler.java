@@ -22,21 +22,21 @@ class EventTicketHandler {
     /**
      *  Only sell a ticket if the win for that is >= value * SELL_WIN_MARGIN.
      */
-    private static final double SELL_WIN_MARGIN = 0.2; // %
+    private static final double SELL_WIN_MARGIN = 0.42; // %
     
     /**
      *  Only buy a ticket if its allocation is known to be good and we make
      *  this relative amount of win of the buy.
      */
-    private static final double SECURE_BUY_WIN_MARGIN = 0.25; // %
+    private static final double SECURE_BUY_WIN_MARGIN = 0.33; // %
     
     /**
      *  If we probably want to buy this ticket, but don't know yet if we will
      *  need it in the end. Buy only if we make this relative amount in win.
      */
-    private static final double POSSIBLE_BUY_WIN_MARGIN = 0.5; // %
+    private static final double POSSIBLE_BUY_WIN_MARGIN = 0.99; // %
     
-    private static final double REPLACE_MARGIN = 0.75; // %
+    private static final double REPLACE_MARGIN = 0.9; // %
     
     
     /**
@@ -118,21 +118,17 @@ class EventTicketHandler {
         bidManager.interrupt();
     }
     
-    public void allocationUpdated(Allocation target) {
+    public boolean allocationUpdated(Allocation target) {
         this.targetAlloc = target;
         
-        updatePrices();
-        
-        runManager.release();
+        return updatePrices();
     }
     
-    public void ownsUpdated(Owns owns, Allocation alloc) {
+    public boolean ownsUpdated(Owns owns, Allocation alloc) {
         this.currentAlloc = alloc;
         this.owns = owns.get(handle);
         
-        updatePrices();
-    
-        runManager.release();
+        return updatePrices();
     }
     
     public void quoteUpdated(Quote quote) {
@@ -147,13 +143,16 @@ class EventTicketHandler {
         //runManager.release();
     }
     
-    private void updatePrices() {
+    private boolean updatePrices() {
         if(currentAlloc == null || targetAlloc == null) {
             // TODO is this warning needed?
             System.err.println("EventTicketHandler."+handle+": "+
                 "Can't update prices!");
-            return;
+            return false;
         }
+        
+        int oldMax = maxBuyPrice;
+        int oldMin = minSellPrice;
         
         // Determine relevant clients
         List<Integer> secureBonuses = new ArrayList<>(CLIENTS);
@@ -161,7 +160,7 @@ class EventTicketHandler {
         
         for(int i=0; i < CLIENTS; i++) {
             if(handle.day < targetAlloc.getArrival(i) 
-                ||  handle.day > targetAlloc.getDeparture(i)) {
+                ||  handle.day >= targetAlloc.getDeparture(i)) {
                 // If the client will not be here this day, skip
                 continue;
             }
@@ -173,7 +172,7 @@ class EventTicketHandler {
             for(Item.Type type : Item.EVENT_TYPES) {
                 if(handle.type != type
                     && currentAlloc.getEventDay(i, type) == handle.day
-                    // && prefs.getEventBonus(i, type) >= (clientBonus[i]*(1-REPLACE_MARGIN))
+                    && prefs.getEventBonus(i, type) >= (clientBonus[i]*(1-REPLACE_MARGIN))
                   ) {
                     feasable = false;
                 }
@@ -237,6 +236,8 @@ class EventTicketHandler {
         // Set prices, making sure we stay within our absolute maximums
         this.maxBuyPrice  = Math.min(MAX_BUY_PRICE,  (int) Math.floor(maxBuyPrice));
         this.minSellPrice = Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice));
+        
+        return (oldMax != maxBuyPrice) || (oldMin != minSellPrice);
     }
     
     private class BidManager implements Runnable {
