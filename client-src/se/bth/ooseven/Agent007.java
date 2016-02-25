@@ -251,9 +251,6 @@ public class Agent007 extends AgentImpl {
         System.out.println("Game stopped.");
 
         this.utilityCache.stop();
-        for(EventTicketHandler eh : eventTicketHandlers.values()) {
-            eh.stop();
-        }
         this.entertainmentBidder.cancel(true);
     }
 
@@ -263,7 +260,7 @@ public class Agent007 extends AgentImpl {
     private void initializeEntertainmentBidding() {
         // Initialize EventTicketHandlers
         for (Item item : Item.EVENTS) {
-            EventTicketHandler eh = new EventTicketHandler(agent, preferences, item);
+            EventTicketHandler eh = new EventTicketHandler(preferences, item);
             eventTicketHandlers.put(item, eh);
         }
 
@@ -275,7 +272,8 @@ public class Agent007 extends AgentImpl {
     }
 
     /**
-     * Calculates and submits entertainment ticket bids based on the currently
+     * Calculates and submits entertainment ticket bids based on
+     * the currently
      * owned items.
      */
     private void updateEntertainmentBids() {
