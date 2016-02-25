@@ -280,13 +280,9 @@ public class Agent007 extends AgentImpl {
         Allocation target  = new Allocation(this.owned.withAllFlights(), this.preferences);
         for(EventTicketHandler eh : eventTicketHandlers.values()) {
             eh.ownsUpdated(this.owned, target);
-            try {
-                List<BidPoint> points = new ArrayList<>(2);
-                points.add(new BidPoint(1, eh.maxBuyPrice));
-                points.add(new BidPoint(-1, eh.minSellPrice));
-                placeBid(eh.handle, points);
-            } catch (Exception e) {
-                System.err.println("Problem placing bid: "+e);
+            List<BidPoint> bidPoints = eh.calculateBids();
+            if (bidPoints != null) {
+                placeBid(eh.handle, bidPoints);
             }
         }
     }

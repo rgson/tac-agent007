@@ -46,11 +46,11 @@ class EventTicketHandler {
     /**
      * Current minimum price we would want to sell one of these tickets for.
      */
-    public Integer minSellPrice = 200;
+    private int minSellPrice = 200;
     /**
      * Current maximum price we would want to pay for this ticket.
      */
-    public Integer maxBuyPrice = 0;
+    private int maxBuyPrice = 0;
     private int owns = 0;
     private Allocation targetAlloc = null;
     private Allocation currentAlloc = null;
@@ -65,28 +65,25 @@ class EventTicketHandler {
         }
     }
 
-    public boolean allocationUpdated(Allocation target) {
+    public void allocationUpdated(Allocation target) {
         this.targetAlloc = target;
-        return updatePrices();
     }
 
-    public boolean ownsUpdated(Owns owns, Allocation alloc) {
+    public void ownsUpdated(Owns owns, Allocation alloc) {
         this.currentAlloc = alloc;
         this.owns = owns.get(handle);
-
-        return updatePrices();
     }
 
-    private boolean updatePrices() {
+    public List<BidPoint> calculateBids() {
         if (currentAlloc == null || targetAlloc == null) {
             // TODO is this warning needed?
             System.err.println("EventTicketHandler." + handle + ": " +
                     "Can't update prices!");
-            return false;
+            return null;
         }
 
-        int oldMax = maxBuyPrice;
-        int oldMin = minSellPrice;
+        int oldMax = this.maxBuyPrice;
+        int oldMin = this.minSellPrice;
 
         // Determine relevant clients
         List<Integer> secureBonuses = new ArrayList<>(CLIENTS);
@@ -171,7 +168,15 @@ class EventTicketHandler {
         this.maxBuyPrice = Math.min(MAX_BUY_PRICE, (int) Math.floor(maxBuyPrice));
         this.minSellPrice = Math.max(MIN_SELL_PRICE, (int) Math.ceil(minSellPrice));
 
-        return (oldMax != maxBuyPrice) || (oldMin != minSellPrice);
+        // If the bids have changed, return the new BidPoints.
+        if (this.maxBuyPrice != oldMax || this.minSellPrice != oldMin) {
+            List<BidPoint> bidPoints = new ArrayList<>(2);
+            bidPoints.add(new BidPoint(1, this.maxBuyPrice));
+            bidPoints.add(new BidPoint(-1, this.minSellPrice));
+            return bidPoints;
+        }
+
+        return null;
     }
 
 }
