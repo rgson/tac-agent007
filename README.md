@@ -1,7 +1,7 @@
 # Agent007
 An agent implementation for the [TAC Classic](http://tac.sics.se/page.php?id=3) game.
 
-Created by Robin Gustafsson, Tamme Dittrich and Peter Eriksson.
+Created by Robin Gustafsson, Tamme Dittrich and Peter Eriksson for the "DV2541 Agent Systems" course at BTH.
 
 ## Setup
 1. Compile the server using the `compile.sh`/`compile.bat` files in the `server-src` directory.  
